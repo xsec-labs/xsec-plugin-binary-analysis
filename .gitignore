@@ -1,0 +1,9 @@
+/target/
+/bin/
+/.xsec-build/
+/dist/
+/release/
+*.xsec-plugin
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

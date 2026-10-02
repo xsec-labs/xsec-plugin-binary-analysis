@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "XSEC binary analysis engine versions",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "radare2",
+    "r2ghidra",
+    "dependencies",
+    "radare2PatchSetSha256",
+    "ghidraNativePatchSetSha256",
+    "requiredRadare2ConfigureFlags",
+    "licenseInventoryPath",
+    "licenseInventorySha256"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "radare2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "commit", "license"],
+      "properties": {
+        "version": { "const": "6.2.2" },
+        "commit": { "const": "ad27058877024389292fddf12e1db6e13824ba34" },
+        "license": { "const": "LGPL-3.0-only" }
+      }
+    },
+    "r2ghidra": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "commit", "license"],
+      "properties": {
+        "version": { "const": "6.2.2" },
+        "commit": { "const": "1b5cba403c4c8751db8434f6790d5e0f132038f4" },
+        "license": { "const": "LGPL-3.0-only" }
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ghidra-native", "zlib"],
+      "properties": {
+        "ghidra-native": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["commit", "license"],
+          "properties": {
+            "commit": { "const": "483ae94bcbc661a77667e52f1eff75928cb6aa2e" },
+            "license": { "const": "Apache-2.0" }
+          }
+        },
+        "zlib": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["commit", "license"],
+          "properties": {
+            "commit": { "const": "51b7f2abdade71cd9bb0e7a373ef2610ec6f9daf" },
+            "license": { "const": "Zlib" }
+          }
+        }
+      }
+    },
+    "requiredRadare2ConfigureFlags": { "const": ["--without-gpl"] },
+    "radare2PatchSetSha256": { "const": "6241d08b3ed5b7bf432d4c3be1ea073b40468737b8a9d486fe4bbfdac7747c2f" },
+    "ghidraNativePatchSetSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "licenseInventoryPath": { "const": "radare2-license-inventory.json" },
+    "licenseInventorySha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

@@ -1,0 +1,29 @@
+[package]
+name = "binary-analysis-mcp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "binary-analysis-mcp"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+hex.workspace = true
+reqwest.workspace = true
+rmcp.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+url.workspace = true
+uuid.workspace = true
+xsec-binary-analysis-core = { path = "../binary-analysis-core" }
+
+[dev-dependencies]
+tempfile.workspace = true

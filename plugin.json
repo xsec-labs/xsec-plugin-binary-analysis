@@ -1,0 +1,101 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "com.xsec.binary-analysis",
+  "version": "0.1.0",
+  "description": "XSEC managed static binary analysis, debugging, patch export and evidence",
+  "author": { "name": "XSEC" },
+  "license": "MIT",
+  "extensions": {
+    "com.xsec.desktop": {
+      "schemaVersion": 2,
+      "displayName": "二进制分析",
+      "publisher": "XSEC",
+      "icon": "binary",
+      "engines": { "xsec": ">=0.1.0", "pluginApi": "^1.5.0" },
+      "entrypoints": {
+        "frontend": "./com.xsec.desktop/frontend/index.js",
+        "sidecar": "./bin/binary-analysis-mcp"
+      },
+      "activationEvents": ["onWorkspaceTool:binary-analysis", "onAgentTool:binary_sample_import"],
+      "permissions": {
+        "binary.sample.import": { "reason": "导入经 Host 授权的二进制样本" },
+        "binary.analysis.read": { "reason": "读取受管样本的分析结果、注释与证据" },
+        "debugger.read": { "reason": "读取受管本机调试会话快照" },
+        "debugger.control": { "reason": "启动、附加和控制受管本机调试会话" },
+        "debugger.write": { "reason": "在停止态修改寄存器、内存或软件断点" },
+        "binary.patch.export": { "reason": "校验并导出不可变静态补丁输出" },
+        "binary.sign": { "reason": "配置或执行经审批的重签名" },
+        "mcp.servers.register": { "reason": "注册受监督的二进制分析 MCP 服务" },
+        "native.execute": { "reason": "运行受 Factory 验证的二进制分析 Sidecar" }
+      },
+      "frontendApi": {
+        "version": 2,
+        "module": "single-esm",
+        "methods": {
+          "xsec.binary.sample.import": { "capability": "binary.sample.import", "binding": "context", "mcpServer": "binary-analysis", "mcpTool": "binary_sample_import" },
+          "xsec.binary.samples.list": { "capability": "binary.analysis.read", "binding": "context", "mcpServer": "binary-analysis", "mcpTool": "binary_samples_list" },
+          "xsec.binary.analysis.start": { "capability": "binary.analysis.read", "binding": "context", "mcpServer": "binary-analysis", "mcpTool": "binary_analysis_start" },
+          "xsec.binary.jobs.get": { "capability": "binary.analysis.read", "binding": "context", "mcpServer": "binary-analysis", "mcpTool": "binary_job_get" },
+          "xsec.binary.sample.info": { "capability": "binary.analysis.read", "binding": "context", "mcpServer": "binary-analysis", "mcpTool": "binary_sample_info" },
+          "xsec.binary.functions.list": { "capability": "binary.analysis.read", "binding": "context", "mcpServer": "binary-analysis", "mcpTool": "binary_functions_list" },
+          "xsec.binary.strings.list": { "capability": "binary.analysis.read", "binding": "context", "mcpServer": "binary-analysis", "mcpTool": "binary_strings_list" },
+          "xsec.binary.imports.list": { "capability": "binary.analysis.read", "binding": "context", "mcpServer": "binary-analysis", "mcpTool": "binary_imports_list" },
+          "xsec.binary.disassemble": { "capability": "binary.analysis.read", "binding": "context", "mcpServer": "binary-analysis", "mcpTool": "binary_disassemble" },
+          "xsec.binary.cfg": { "capability": "binary.analysis.read", "binding": "context", "mcpServer": "binary-analysis", "mcpTool": "binary_cfg" },
+          "xsec.binary.references.list": { "capability": "binary.analysis.read", "binding": "context", "mcpServer": "binary-analysis", "mcpTool": "binary_references_list" },
+          "xsec.binary.decompile": { "capability": "binary.analysis.read", "binding": "context", "mcpServer": "binary-analysis", "mcpTool": "binary_decompile" },
+          "xsec.binary.annotation.upsert": { "capability": "binary.analysis.read", "binding": "context", "mcpServer": "binary-analysis", "mcpTool": "binary_annotation_upsert" },
+          "xsec.binary.evidence.create": { "capability": "binary.analysis.read", "binding": "context", "mcpServer": "binary-analysis", "mcpTool": "binary_evidence_create" },
+          "xsec.binary.debug.launch": { "capability": "debugger.control", "binding": "context", "mcpServer": "binary-analysis", "mcpTool": "binary_debug_launch" },
+          "xsec.binary.debug.attach": { "capability": "debugger.control", "binding": "context", "mcpServer": "binary-analysis", "mcpTool": "binary_debug_attach" },
+          "xsec.binary.debug.control": { "capability": "debugger.control", "binding": "context", "mcpServer": "binary-analysis", "mcpTool": "binary_debug_control" },
+          "xsec.binary.debug.snapshot": { "capability": "debugger.read", "binding": "context", "mcpServer": "binary-analysis", "mcpTool": "binary_debug_snapshot" },
+          "xsec.binary.debug.write": { "capability": "debugger.write", "binding": "context", "mcpServer": "binary-analysis", "mcpTool": "binary_debug_write" },
+          "xsec.binary.patch.draft": { "capability": "binary.patch.export", "binding": "context", "mcpServer": "binary-analysis", "mcpTool": "binary_patch_draft" },
+          "xsec.binary.patch.export": { "capability": "binary.patch.export", "binding": "context", "mcpServer": "binary-analysis", "mcpTool": "binary_patch_export" },
+          "xsec.binary.sign.configure": { "capability": "binary.sign", "binding": "context", "mcpServer": "binary-analysis", "mcpTool": "binary_sign_configure" }
+        }
+      },
+      "contributes": {
+        "workspaceTools": {
+          "binary-analysis": {
+            "title": "二进制分析",
+            "icon": "binary",
+            "scope": "assignment",
+            "launchable": true,
+            "policy": "singleton",
+            "surface": "standard",
+            "retain": "active",
+            "preferredSideWidth": 620,
+            "preferredBottomHeight": 420,
+            "surfaces": ["interactive-dock", "batch-observe"]
+          }
+        },
+        "agentTools": {
+          "sample-import": { "mcpServer": "binary-analysis", "mcpTool": "binary_sample_import", "workspaceToolId": "binary-analysis", "permission": "binary.sample.import" },
+          "samples-list": { "mcpServer": "binary-analysis", "mcpTool": "binary_samples_list", "workspaceToolId": "binary-analysis", "permission": "binary.analysis.read", "roles": ["parent", "sub"] },
+          "analysis-start": { "mcpServer": "binary-analysis", "mcpTool": "binary_analysis_start", "workspaceToolId": "binary-analysis", "permission": "binary.analysis.read" },
+          "job-get": { "mcpServer": "binary-analysis", "mcpTool": "binary_job_get", "workspaceToolId": "binary-analysis", "permission": "binary.analysis.read", "roles": ["parent", "sub"] },
+          "sample-info": { "mcpServer": "binary-analysis", "mcpTool": "binary_sample_info", "workspaceToolId": "binary-analysis", "permission": "binary.analysis.read", "roles": ["parent", "sub"] },
+          "functions-list": { "mcpServer": "binary-analysis", "mcpTool": "binary_functions_list", "workspaceToolId": "binary-analysis", "permission": "binary.analysis.read", "roles": ["parent", "sub"] },
+          "disassemble": { "mcpServer": "binary-analysis", "mcpTool": "binary_disassemble", "workspaceToolId": "binary-analysis", "permission": "binary.analysis.read", "roles": ["parent", "sub"] },
+          "cfg": { "mcpServer": "binary-analysis", "mcpTool": "binary_cfg", "workspaceToolId": "binary-analysis", "permission": "binary.analysis.read", "roles": ["parent", "sub"] },
+          "strings-list": { "mcpServer": "binary-analysis", "mcpTool": "binary_strings_list", "workspaceToolId": "binary-analysis", "permission": "binary.analysis.read", "roles": ["parent", "sub"] },
+          "imports-list": { "mcpServer": "binary-analysis", "mcpTool": "binary_imports_list", "workspaceToolId": "binary-analysis", "permission": "binary.analysis.read", "roles": ["parent", "sub"] },
+          "references-list": { "mcpServer": "binary-analysis", "mcpTool": "binary_references_list", "workspaceToolId": "binary-analysis", "permission": "binary.analysis.read", "roles": ["parent", "sub"] },
+          "decompile": { "mcpServer": "binary-analysis", "mcpTool": "binary_decompile", "workspaceToolId": "binary-analysis", "permission": "binary.analysis.read", "roles": ["parent", "sub"] },
+          "annotation-upsert": { "mcpServer": "binary-analysis", "mcpTool": "binary_annotation_upsert", "workspaceToolId": "binary-analysis", "permission": "binary.analysis.read" },
+          "evidence-create": { "mcpServer": "binary-analysis", "mcpTool": "binary_evidence_create", "workspaceToolId": "binary-analysis", "permission": "binary.analysis.read" },
+          "debug-launch": { "mcpServer": "binary-analysis", "mcpTool": "binary_debug_launch", "workspaceToolId": "binary-analysis", "permission": "debugger.control" },
+          "debug-attach": { "mcpServer": "binary-analysis", "mcpTool": "binary_debug_attach", "workspaceToolId": "binary-analysis", "permission": "debugger.control" },
+          "debug-control": { "mcpServer": "binary-analysis", "mcpTool": "binary_debug_control", "workspaceToolId": "binary-analysis", "permission": "debugger.control" },
+          "debug-snapshot": { "mcpServer": "binary-analysis", "mcpTool": "binary_debug_snapshot", "workspaceToolId": "binary-analysis", "permission": "debugger.read", "roles": ["parent", "sub"] },
+          "debug-write": { "mcpServer": "binary-analysis", "mcpTool": "binary_debug_write", "workspaceToolId": "binary-analysis", "permission": "debugger.write" },
+          "patch-draft": { "mcpServer": "binary-analysis", "mcpTool": "binary_patch_draft", "workspaceToolId": "binary-analysis", "permission": "binary.patch.export" },
+          "patch-export": { "mcpServer": "binary-analysis", "mcpTool": "binary_patch_export", "workspaceToolId": "binary-analysis", "permission": "binary.patch.export" },
+          "sign-configure": { "mcpServer": "binary-analysis", "mcpTool": "binary_sign_configure", "workspaceToolId": "binary-analysis", "permission": "binary.sign" }
+        }
+      }
+    }
+  }
+}

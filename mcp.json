@@ -1,0 +1,11 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "binary-analysis": {
+      "type": "stdio",
+      "command": "./bin/binary-analysis-mcp",
+      "cwd": "${PLUGIN_DATA}"
+    }
+  }
+}
+

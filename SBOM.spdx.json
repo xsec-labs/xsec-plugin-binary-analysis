@@ -1,0 +1,97 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "com.xsec.binary-analysis-source",
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://xsec.local/spdx/com.xsec.binary-analysis/source/0.1.0",
+  "creationInfo": {
+    "creators": [
+      "Organization: XSEC"
+    ],
+    "created": "2026-09-27T09:36:24Z"
+  },
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-XsecBinaryAnalysis",
+      "name": "com.xsec.binary-analysis",
+      "versionInfo": "0.1.0",
+      "downloadLocation": "https://github.com/xsec-labs/xsec-plugin-binary-analysis",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-Recurse",
+      "name": "Recurse",
+      "versionInfo": "59e38d503c91ff160fe013f20719714272d22184",
+      "downloadLocation": "https://github.com/Recurse-Labs/recurse",
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-radare2",
+      "name": "radare2",
+      "versionInfo": "6.2.2",
+      "sourceInfo": "Git commit ad27058877024389292fddf12e1db6e13824ba34; patch set SHA-256 6241d08b3ed5b7bf432d4c3be1ea073b40468737b8a9d486fe4bbfdac7747c2f; build with --without-gpl and record installed license inventory",
+      "downloadLocation": "https://github.com/radareorg/radare2",
+      "licenseConcluded": "LGPL-3.0-only",
+      "licenseDeclared": "LGPL-3.0-only"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-r2ghidra",
+      "name": "r2ghidra",
+      "versionInfo": "6.2.2",
+      "sourceInfo": "Git commit 1b5cba403c4c8751db8434f6790d5e0f132038f4",
+      "downloadLocation": "https://github.com/radareorg/r2ghidra",
+      "licenseConcluded": "LGPL-3.0-only",
+      "licenseDeclared": "LGPL-3.0-only"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ghidra-native",
+      "name": "ghidra-native",
+      "versionInfo": "483ae94bcbc661a77667e52f1eff75928cb6aa2e",
+      "downloadLocation": "https://github.com/radareorg/ghidra-native",
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-zlib",
+      "name": "zlib",
+      "versionInfo": "51b7f2abdade71cd9bb0e7a373ef2610ec6f9daf",
+      "downloadLocation": "https://github.com/madler/zlib",
+      "licenseConcluded": "Zlib",
+      "licenseDeclared": "Zlib"
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-Package-XsecBinaryAnalysis"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-XsecBinaryAnalysis",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-Recurse"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-XsecBinaryAnalysis",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-radare2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-XsecBinaryAnalysis",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-r2ghidra"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-r2ghidra",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-ghidra-native"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-r2ghidra",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-zlib"
+    }
+  ]
+}

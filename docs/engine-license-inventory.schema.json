@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "XSEC binary analysis engine license inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "radare2Commit", "components"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "radare2Commit": { "const": "ad27058877024389292fddf12e1db6e13824ba34" },
+    "components": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "license"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "license": {
+            "type": "string",
+            "pattern": "^(?!GPL(?:-|$|[0-9v]))[A-Za-z0-9][A-Za-z0-9.+-]*$"
+          }
+        }
+      }
+    }
+  }
+}
