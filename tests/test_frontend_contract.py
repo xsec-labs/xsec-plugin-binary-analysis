@@ -46,12 +46,12 @@ class FrontendContractTests(unittest.TestCase):
         self.assertEqual({item["mcpTool"] for item in agent_tools.values()}, set(EXPECTED_TOOLS))
         entrypoint = extension["entrypoints"]["frontend"].removeprefix("./")
         self.assertTrue((ROOT / entrypoint).is_file())
-        sidecar_entrypoint = extension["entrypoints"]["sidecar"]
-        self.assertEqual(sidecar_entrypoint, "./bin/binary-analysis-mcp")
+        self.assertNotIn("sidecar", extension["entrypoints"],
+                         "The stdio MCP process must be owned by the MCP Fabric")
         mcp = json.loads((ROOT / "mcp.json").read_text(encoding="utf-8"))
         server = mcp["mcpServers"]["binary-analysis"]
         self.assertEqual(server["type"], "stdio")
-        self.assertEqual(server["command"], sidecar_entrypoint)
+        self.assertEqual(server["command"], "./bin/binary-analysis-mcp")
         self.assertEqual(server["cwd"], "${PLUGIN_DATA}")
 
 

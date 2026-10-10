@@ -1,0 +1,46 @@
+{
+  "name": "xsec-plugin-binary-analysis-source-validation",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "node scripts/build.mjs",
+    "check:generated": "node scripts/check-generated.mjs",
+    "verify:frontend": "python3 -B scripts/verify_frontend.py",
+    "test": "python3 -B -m unittest discover -s tests -v"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "typescript": "5.9.3",
+    "esbuild": "0.25.12"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "lucide-react": "0.468.0",
+    "@xsec/design-tokens": "file:vendor/xsec-ui/xsec-design-tokens-0.1.2.tgz",
+    "@xsec/ui-react": "file:vendor/xsec-ui/xsec-ui-react-0.1.7.tgz"
+  },
+  "overrides": {
+    "@babel/runtime": "7.29.7",
+    "@base-ui/react": "1.6.0",
+    "@base-ui/utils": "0.3.1",
+    "@floating-ui/core": "1.8.0",
+    "@floating-ui/dom": "1.8.0",
+    "@floating-ui/react-dom": "2.1.9",
+    "@floating-ui/utils": "0.2.12",
+    "@types/prop-types": "15.7.15",
+    "csstype": "3.2.3",
+    "framer-motion": "12.42.2",
+    "js-tokens": "4.0.0",
+    "loose-envify": "1.4.0",
+    "motion": "12.42.2",
+    "motion-dom": "12.42.2",
+    "motion-utils": "12.39.0",
+    "reselect": "5.3.0",
+    "scheduler": "0.23.2",
+    "tslib": "2.8.1",
+    "use-sync-external-store": "1.7.0"
+  }
+}

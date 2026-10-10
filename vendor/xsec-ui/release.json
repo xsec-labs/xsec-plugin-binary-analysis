@@ -1,0 +1,12 @@
+{
+  "packages": [
+    {
+      "file": "xsec-ui-react-0.1.7.tgz",
+      "sha256": "5bfa1f096834bed12f2124b92e4730166266289424a83e2da0987abf5ae8bb36"
+    },
+    {
+      "file": "xsec-design-tokens-0.1.2.tgz",
+      "sha256": "add2fe350b31311472c615c911b17b1c39e8b5396859ac3594e496ef0ae031eb"
+    }
+  ]
+}

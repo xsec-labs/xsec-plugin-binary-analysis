@@ -13,8 +13,7 @@
       "icon": "binary",
       "engines": { "xsec": ">=0.1.0", "pluginApi": "^1.5.0" },
       "entrypoints": {
-        "frontend": "./com.xsec.desktop/frontend/index.js",
-        "sidecar": "./bin/binary-analysis-mcp"
+        "frontend": "./com.xsec.desktop/frontend/index.js"
       },
       "activationEvents": ["onWorkspaceTool:binary-analysis", "onAgentTool:binary_sample_import"],
       "permissions": {

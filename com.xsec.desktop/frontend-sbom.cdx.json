@@ -1,0 +1,267 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "metadata": {
+    "component": {
+      "type": "application",
+      "bom-ref": "com.xsec.binary-analysis/frontend",
+      "name": "com.xsec.binary-analysis frontend",
+      "version": "0.1.0",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "197a05b8f944fb89478148c7c5cb480d27591dd5955c7751d1afe52c0ae369b7"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "bom-ref": "frontend:@base-ui/react@1.6.0",
+      "name": "@base-ui/react",
+      "version": "1.6.0",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:npm/%40base-ui/react@1.6.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "frontend:@base-ui/utils@0.3.1",
+      "name": "@base-ui/utils",
+      "version": "0.3.1",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:npm/%40base-ui/utils@0.3.1"
+    },
+    {
+      "type": "library",
+      "bom-ref": "frontend:@floating-ui/core@1.8.0",
+      "name": "@floating-ui/core",
+      "version": "1.8.0",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:npm/%40floating-ui/core@1.8.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "frontend:@floating-ui/dom@1.8.0",
+      "name": "@floating-ui/dom",
+      "version": "1.8.0",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:npm/%40floating-ui/dom@1.8.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "frontend:@floating-ui/react-dom@2.1.9",
+      "name": "@floating-ui/react-dom",
+      "version": "2.1.9",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:npm/%40floating-ui/react-dom@2.1.9"
+    },
+    {
+      "type": "library",
+      "bom-ref": "frontend:@floating-ui/utils@0.2.12",
+      "name": "@floating-ui/utils",
+      "version": "0.2.12",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:npm/%40floating-ui/utils@0.2.12"
+    },
+    {
+      "type": "library",
+      "bom-ref": "frontend:@xsec/design-tokens@0.1.2",
+      "name": "@xsec/design-tokens",
+      "version": "0.1.2",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:npm/%40xsec/design-tokens@0.1.2"
+    },
+    {
+      "type": "library",
+      "bom-ref": "frontend:@xsec/ui-react@0.1.7",
+      "name": "@xsec/ui-react",
+      "version": "0.1.7",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:npm/%40xsec/ui-react@0.1.7"
+    },
+    {
+      "type": "library",
+      "bom-ref": "frontend:framer-motion@12.42.2",
+      "name": "framer-motion",
+      "version": "12.42.2",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:npm/framer-motion@12.42.2"
+    },
+    {
+      "type": "library",
+      "bom-ref": "frontend:lucide-react@0.468.0",
+      "name": "lucide-react",
+      "version": "0.468.0",
+      "licenses": [
+        {
+          "expression": "ISC"
+        }
+      ],
+      "purl": "pkg:npm/lucide-react@0.468.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "frontend:motion-dom@12.42.2",
+      "name": "motion-dom",
+      "version": "12.42.2",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:npm/motion-dom@12.42.2"
+    },
+    {
+      "type": "library",
+      "bom-ref": "frontend:motion-utils@12.39.0",
+      "name": "motion-utils",
+      "version": "12.39.0",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:npm/motion-utils@12.39.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "frontend:motion@12.42.2",
+      "name": "motion",
+      "version": "12.42.2",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:npm/motion@12.42.2"
+    },
+    {
+      "type": "library",
+      "bom-ref": "frontend:react-dom@18.3.1",
+      "name": "react-dom",
+      "version": "18.3.1",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:npm/react-dom@18.3.1"
+    },
+    {
+      "type": "library",
+      "bom-ref": "frontend:react@18.3.1",
+      "name": "react",
+      "version": "18.3.1",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:npm/react@18.3.1"
+    },
+    {
+      "type": "library",
+      "bom-ref": "frontend:reselect@5.3.0",
+      "name": "reselect",
+      "version": "5.3.0",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:npm/reselect@5.3.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "frontend:scheduler@0.23.2",
+      "name": "scheduler",
+      "version": "0.23.2",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:npm/scheduler@0.23.2"
+    },
+    {
+      "type": "library",
+      "bom-ref": "frontend:use-sync-external-store@1.7.0",
+      "name": "use-sync-external-store",
+      "version": "1.7.0",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "purl": "pkg:npm/use-sync-external-store@1.7.0"
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "com.xsec.binary-analysis/frontend",
+      "dependsOn": [
+        "frontend:@base-ui/react@1.6.0",
+        "frontend:@base-ui/utils@0.3.1",
+        "frontend:@floating-ui/core@1.8.0",
+        "frontend:@floating-ui/dom@1.8.0",
+        "frontend:@floating-ui/react-dom@2.1.9",
+        "frontend:@floating-ui/utils@0.2.12",
+        "frontend:@xsec/design-tokens@0.1.2",
+        "frontend:@xsec/ui-react@0.1.7",
+        "frontend:framer-motion@12.42.2",
+        "frontend:lucide-react@0.468.0",
+        "frontend:motion-dom@12.42.2",
+        "frontend:motion-utils@12.39.0",
+        "frontend:motion@12.42.2",
+        "frontend:react-dom@18.3.1",
+        "frontend:react@18.3.1",
+        "frontend:reselect@5.3.0",
+        "frontend:scheduler@0.23.2",
+        "frontend:use-sync-external-store@1.7.0"
+      ]
+    }
+  ]
+}
