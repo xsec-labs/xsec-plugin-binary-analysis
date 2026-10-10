@@ -26,4 +26,5 @@ uuid.workspace = true
 xsec-binary-analysis-core = { path = "../binary-analysis-core" }
 
 [dev-dependencies]
+sha2.workspace = true
 tempfile.workspace = true

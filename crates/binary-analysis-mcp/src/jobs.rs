@@ -66,17 +66,19 @@ fn complete_analysis(
     sample: ManagedSample,
     mode: AnalysisMode,
 ) -> Result<()> {
-    match analyze(&sample, mode, bundle.as_ref()) {
-        Ok(snapshot) => store
-            .complete_job(&job_id, &assignment_id, &sample.sample_id, &snapshot)
-            .map(|_| ()),
-        Err(error) => {
-            let detail = format!("{error:#}");
-            store
-                .fail_job(&job_id, &assignment_id, &detail)
-                .map_err(|failure| {
-                    anyhow::anyhow!("{detail}; failed to persist job failure: {failure:#}")
-                })
+    let outcome = analyze(&sample, mode, bundle.as_ref()).and_then(|snapshot| {
+        store.complete_job(&job_id, &assignment_id, &sample.sample_id, &snapshot)
+    });
+    if let Err(error) = outcome {
+        let detail = format!("{error:#}");
+        if let Err(failure) = store.fail_job(&job_id, &assignment_id, &detail) {
+            anyhow::bail!("{detail}; failed to persist job failure: {failure:#}");
         }
+        return Err(error);
     }
+    Ok(())
 }
+
+#[cfg(test)]
+#[path = "persistence_tests.rs"]
+mod tests;

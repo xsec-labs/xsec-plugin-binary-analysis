@@ -90,8 +90,23 @@ impl Store {
         let snapshot_json =
             serde_json::to_string(snapshot).context("serialize analysis snapshot")?;
         self.with_connection(|connection| {
-            connection.execute("INSERT INTO snapshots(revision_id, assignment_id, sample_id, snapshot_json, created_at) VALUES(?1, ?2, ?3, ?4, ?5)", params![snapshot.revision.id, assignment_id, sample_id, snapshot_json, now()?])?;
-            update_job(connection, job_id, assignment_id, "completed", None, Some(&snapshot.revision.id))
+            let transaction = connection.unchecked_transaction().context("begin analysis completion")?;
+            let existing = transaction.query_row(
+                "SELECT sample_id, snapshot_json FROM snapshots WHERE assignment_id=?1 AND revision_id=?2",
+                params![assignment_id, snapshot.revision.id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            ).optional().context("read immutable analysis result")?;
+            if let Some((stored_sample, stored_json)) = existing {
+                let stored: Value = serde_json::from_str(&stored_json).context("parse immutable analysis result")?;
+                let current = serde_json::to_value(snapshot).context("compare immutable analysis result")?;
+                if stored_sample != sample_id || stored != current {
+                    bail!("analysis revision conflicts with the stored immutable result");
+                }
+            } else {
+                transaction.execute("INSERT INTO snapshots(revision_id, assignment_id, sample_id, snapshot_json, created_at) VALUES(?1, ?2, ?3, ?4, ?5)", params![snapshot.revision.id, assignment_id, sample_id, snapshot_json, now()?]).context("persist analysis result")?;
+            }
+            update_job(&transaction, job_id, assignment_id, "completed", None, Some(&snapshot.revision.id))?;
+            transaction.commit().context("commit analysis result and job completion")
         })
     }
 
@@ -163,8 +178,20 @@ impl Store {
 
     fn migrate(&self) -> Result<()> {
         self.with_connection(|connection| {
-            connection.execute_batch("PRAGMA foreign_keys=ON; CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL, state TEXT NOT NULL, kind TEXT NOT NULL, error TEXT, revision_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS snapshots(revision_id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL, sample_id TEXT NOT NULL, snapshot_json TEXT NOT NULL, created_at INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS annotations(assignment_id TEXT NOT NULL, revision_id TEXT NOT NULL, address_json TEXT NOT NULL, text TEXT NOT NULL, tags_json TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY(assignment_id, revision_id, address_json)); CREATE TABLE IF NOT EXISTS patch_sets(id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL, revision_id TEXT NOT NULL, sample_sha256 TEXT NOT NULL, slice TEXT, operations_json TEXT NOT NULL, created_at INTEGER NOT NULL);").context("migrate binary analysis SQLite")?;
-            Ok(())
+            connection.execute_batch("PRAGMA foreign_keys=ON;").context("enable SQLite foreign keys")?;
+            let transaction = connection.unchecked_transaction().context("begin binary analysis migration")?;
+            transaction.execute_batch("CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL, state TEXT NOT NULL, kind TEXT NOT NULL, error TEXT, revision_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS snapshots(revision_id TEXT NOT NULL, assignment_id TEXT NOT NULL, sample_id TEXT NOT NULL, snapshot_json TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(assignment_id, revision_id)); CREATE TABLE IF NOT EXISTS annotations(assignment_id TEXT NOT NULL, revision_id TEXT NOT NULL, address_json TEXT NOT NULL, text TEXT NOT NULL, tags_json TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY(assignment_id, revision_id, address_json)); CREATE TABLE IF NOT EXISTS patch_sets(id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL, revision_id TEXT NOT NULL, sample_sha256 TEXT NOT NULL, slice TEXT, operations_json TEXT NOT NULL, created_at INTEGER NOT NULL);").context("create binary analysis tables")?;
+            let keys = {
+                let mut statement = transaction.prepare("SELECT name FROM pragma_table_info('snapshots') WHERE pk>0 ORDER BY pk").context("inspect analysis result primary key")?;
+                let rows = statement.query_map([], |row| row.get::<_, String>(0))?;
+                rows.collect::<rusqlite::Result<Vec<_>>>()?
+            };
+            if keys == ["revision_id"] {
+                transaction.execute_batch("CREATE TABLE snapshots_scoped(revision_id TEXT NOT NULL, assignment_id TEXT NOT NULL, sample_id TEXT NOT NULL, snapshot_json TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(assignment_id, revision_id)); INSERT INTO snapshots_scoped SELECT revision_id, assignment_id, sample_id, snapshot_json, created_at FROM snapshots; DROP TABLE snapshots; ALTER TABLE snapshots_scoped RENAME TO snapshots;").context("scope existing analysis results by assignment")?;
+            } else if keys != ["assignment_id", "revision_id"] {
+                bail!("binary analysis SQLite has an unsupported result primary key");
+            }
+            transaction.commit().context("commit binary analysis migration")
         })
     }
 
@@ -198,9 +225,9 @@ fn update_job(
     error: Option<&str>,
     revision_id: Option<&str>,
 ) -> Result<()> {
-    let updated = connection.execute("UPDATE jobs SET state=?1, error=?2, revision_id=?3, updated_at=?4 WHERE id=?5 AND assignment_id=?6", params![state, error, revision_id, now()?, job_id, assignment_id])?;
+    let updated = connection.execute("UPDATE jobs SET state=?1, error=?2, revision_id=?3, updated_at=?4 WHERE id=?5 AND assignment_id=?6 AND state='running'", params![state, error, revision_id, now()?, job_id, assignment_id])?;
     if updated != 1 {
-        bail!("binary analysis job is not authorized for this task");
+        bail!("binary analysis job is not authorized for this task or is no longer running");
     }
     Ok(())
 }

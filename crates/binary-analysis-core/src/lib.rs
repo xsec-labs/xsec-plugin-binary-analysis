@@ -3,6 +3,7 @@
 
 mod address;
 mod engine_env;
+mod engine_process;
 mod fast;
 mod full;
 mod macho_slice;

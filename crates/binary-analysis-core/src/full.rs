@@ -1,14 +1,14 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
 use crate::engine_env::set_engine_library_search_path;
+use crate::engine_process::run_engine;
 use crate::{
     resolve_static_address, AnalysisMode, AnalysisRevision, AnalysisSnapshot, BinaryAddress,
     Coverage, ManagedSample, Query, QueryResult, ReferenceDirection,
@@ -16,7 +16,6 @@ use crate::{
 
 const ENGINE_VERSION: &str = "radare2-6.2.2+r2ghidra-6.2.2";
 const R2_TIMEOUT: Duration = Duration::from_secs(120);
-const POLL_INTERVAL: Duration = Duration::from_millis(25);
 
 /// Locations are release-artifact-owned, canonicalized and never accepted from
 /// an MCP argument. The Factory validates this layout before publication.
@@ -279,24 +278,7 @@ fn run_r2(bundle: &EngineBundle, sample: &ManagedSample, script: &str) -> Result
         .env("SLEIGHHOME", &bundle.sleigh_dir)
         .stdin(Stdio::null());
     set_engine_library_search_path(&mut command, &bundle.r2_prefix, &bundle.plugin_dir)?;
-    let mut child = command
-        .stderr(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .context("start reviewed radare2")?;
-    let started = Instant::now();
-    while child.try_wait()?.is_none() {
-        if started.elapsed() > R2_TIMEOUT {
-            child.kill().context("terminate timed-out radare2")?;
-            let _ = child.wait();
-            bail!(
-                "radare2 analysis timed out after {} seconds",
-                R2_TIMEOUT.as_secs()
-            );
-        }
-        thread::sleep(POLL_INTERVAL);
-    }
-    let output = child.wait_with_output().context("collect radare2 output")?;
+    let output = run_engine(&mut command, R2_TIMEOUT)?;
     if !output.status.success() {
         bail!(
             "radare2 analysis failed: {}",
