@@ -1,0 +1,51 @@
+<!doctype html><meta charset="utf-8"><main id="root"></main>
+<script type="module">
+const query=new URLSearchParams(location.search),variant=query.get('variant'),scenario=query.get('scenario');
+const root=document.querySelector('#root'),pending=new Set();
+const send=async(path,value)=>{const response=await fetch(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(value)});const body=await response.json();if(!response.ok)throw new Error(body.error);return body};
+const stats=async()=>{const response=await fetch('/stats');if(!response.ok)throw new Error('component statistics failed');return response.json()};
+const data=await stats(),A=data.projects['project-a'],B=data.projects['project-b'];let project=A;
+const context=()=>({kind:'workspace-tool',project:{projectId:project.projectId}});
+const host={apiVersion:2,get context(){return context()},request(method,params){
+  const request=send('/read-model',{projectId:project.projectId,method,params});pending.add(request);
+  request.then(()=>pending.delete(request),()=>pending.delete(request));return request;
+}};
+const control=action=>send('/control',{projectId:A.projectId,action});
+const assert=(condition,message)=>{if(!condition)throw new Error(message)};
+const hasSample=item=>root.textContent.includes(item.sampleId);
+let unavailable=false;
+try{
+  assert(['baseline','current'].includes(variant),'unknown source variant');
+  const module=await import(`/${variant}.js`),controller=await module.activate(host);
+  if(scenario==='update'){
+    await controller.mount(root,context());assert(hasSample(A),'actual project A sample absent');
+    project=B;await controller.update(context());assert(hasSample(B)&&!hasSample(A),'context update retained the wrong project sample');controller.dispose();
+  }else if(scenario==='dispose-pending'){
+    await control('pause');const mounting=controller.mount(root,context());await control('wait-entered');
+    controller.dispose();await control('release');await mounting;assert(root.childNodes.length===0,'late read wrote DOM after disposal');
+  }else if(scenario==='update-pending'){
+    await control('pause');const mounting=controller.mount(root,context());await control('wait-entered');
+    project=B;await controller.update(context());await control('release');await mounting;
+    assert(hasSample(B)&&!hasSample(A),'late project A response replaced project B');controller.dispose();
+  }else if(scenario==='initial-failure'){
+    await control('make-unavailable');unavailable=true;let failed=false;
+    try{await controller.mount(root,context())}catch(error){failed=error.message==='Desktop Repository sample read failed'}
+    await control('restore');unavailable=false;controller.dispose();assert(failed,'mount swallowed the real Repository failure');
+  }else if(scenario==='dispose-control'){
+    await controller.mount(root,context());const button=[...root.querySelectorAll('button')].find(item=>item.textContent==='导入样本');
+    assert(button,'sample control missing');controller.dispose();const before=(await stats()).requests.length;
+    button.click();await Promise.allSettled([...pending]);const after=(await stats()).requests.length;
+    assert(before===after,'disposed control attempted a new Host operation');
+  }else if(scenario==='late-failure'){
+    await control('pause');const mounting=controller.mount(root,context());await control('wait-entered');
+    project=B;await controller.update(context());await control('make-unavailable');unavailable=true;
+    await control('release');await mounting;await control('restore');unavailable=false;
+    assert(hasSample(B)&&!hasSample(A),'late failed read damaged the active project view');controller.dispose();
+  }else throw new Error('unknown lifecycle case');
+  parent.postMessage({kind:'case-result',result:{variant,scenario,passed:true}},location.origin);
+}catch(error){
+  await control('release');if(unavailable)await control('restore');
+  await Promise.allSettled([...pending]);
+  parent.postMessage({kind:'case-result',result:{variant,scenario,passed:false,error:error.message}},location.origin);
+}
+</script>

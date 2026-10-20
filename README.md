@@ -26,6 +26,15 @@ and signer configuration are sent through the Host approval and audit boundary.
 Complex operations use JSON objects validated by the MCP schema; the panel accepts
 no engine or shell command text.
 
+The frontend controller owns a view for the active context. Updating context
+releases the previous view's event listeners and polling timer before loading
+the new sample list. Disposal clears the mounted DOM, and late responses cannot
+write into a newer view. Request failures propagate to the appropriate Host or
+user-action boundary; view cancellation is recorded separately. The 22 frontend
+Host methods use literal broker calls with the existing manifest permissions and
+parameters. See [browser lifecycle checks](tests/browser_lifecycle/README.md) for
+the real Repository component regression and its native acceptance limits.
+
 ## Development
 
 ```sh
