@@ -1,19 +1,20 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "com.xsec.binary-analysis",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "XSEC managed static binary analysis, debugging, patch export and evidence",
   "author": { "name": "XSEC" },
   "license": "MIT",
   "extensions": {
     "com.xsec.desktop": {
-      "schemaVersion": 2,
+      "schemaVersion": 3,
       "displayName": "二进制分析",
       "publisher": "XSEC",
       "icon": "binary",
       "engines": { "xsec": ">=0.1.0", "pluginApi": "^1.5.0" },
       "entrypoints": {
         "frontend": "./com.xsec.desktop/frontend/index.js",
+        "native": "builtin:com.xsec.binary-analysis",
         "sidecar": "./bin/binary-analysis-mcp"
       },
       "activationEvents": ["onWorkspaceTool:binary-analysis", "onAgentTool:binary_sample_import"],
