@@ -7,11 +7,12 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-from build_engine_bundle import r2ghidra_environment, radare2_configure_command
+from build_engine_bundle import r2ghidra_environment, radare2_configure_command, radare2_environment
 
 # A C++20 static archive whose first member also needs a symbol nothing
 # provides, linked into a C++14 executable: the same shape as r2ghidra's
@@ -74,6 +75,13 @@ class Radare2ConfigureTests(unittest.TestCase):
             radare2_configure_command(prefix, "windows"),
             ["sh", "configure", "--with-ostype=windows", "--without-gpl", f"--prefix={prefix}"],
         )
+
+    def test_windows_keeps_incompatible_pointer_types_a_warning(self) -> None:
+        with mock.patch.dict(os.environ, {"CFLAGS": "-O2"}):
+            self.assertEqual(radare2_environment("windows")["CFLAGS"], "-O2 -Wno-error=incompatible-pointer-types")
+            for os_name in ("linux", "darwin"):
+                with self.subTest(os_name=os_name):
+                    self.assertEqual(radare2_environment(os_name)["CFLAGS"], "-O2")
 
     def test_unix_hosts_keep_automatic_detection(self) -> None:
         prefix = Path("/tmp/prefix")

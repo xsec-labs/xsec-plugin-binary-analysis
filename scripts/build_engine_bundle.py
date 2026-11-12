@@ -87,9 +87,24 @@ def radare2_configure_command(prefix: Path, os_name: str | None = None) -> list[
     return command
 
 
+def radare2_environment(os_name: str | None = None) -> dict[str, str]:
+    """Return the radare2 configure and make environment for one host.
+
+    radare2's make build compiles Windows sources with -DUNICODE, where
+    r_sys_whoami passes a char buffer to GetUserName (GetUserNameW). GCC 14
+    and later reject that as an incompatible pointer type, so keep it a
+    warning on Windows only.
+    """
+    environment = os.environ.copy()
+    if (os_name or host_os()) == "windows":
+        existing = environment.get("CFLAGS", "").strip()
+        environment["CFLAGS"] = f"{existing} -Wno-error=incompatible-pointer-types".strip()
+    return environment
+
+
 def configure_radare2(source: Path, prefix: Path) -> None:
     seed_no_gpl_plugin_config(source)
-    run(radare2_configure_command(prefix), source)
+    run(radare2_configure_command(prefix), source, radare2_environment())
     helper = Path(__file__).with_name("dedupe_radare2_plugin_config.py")
     run([sys.executable, str(helper), "--source", str(source)], source)
 
@@ -98,8 +113,9 @@ def build_radare2(source: Path, prefix: Path, jobs: int) -> None:
     make = shutil.which("gmake") or shutil.which("make")
     if make is None:
         raise ValueError("radare2 engine build requires GNU make or make")
-    run([make, f"-j{jobs}"], source)
-    run([make, "install"], source)
+    environment = radare2_environment()
+    run([make, f"-j{jobs}"], source, environment)
+    run([make, "install"], source, environment)
 
 
 def engine_environment(prefix: Path) -> dict[str, str]:
