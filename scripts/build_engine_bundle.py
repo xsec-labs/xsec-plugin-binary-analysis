@@ -109,23 +109,46 @@ def configure_radare2(source: Path, prefix: Path) -> None:
     run([sys.executable, str(helper), "--source", str(source)], source)
 
 
-def radare2_make_jobs(jobs: int, os_name: str | None = None) -> int:
-    """Return the make parallelism radare2 can use on one host.
+MRI_AR_WRAPPER = """#!/bin/sh
+# radare2 writes MSYS paths such as /d/a/... into the MRI script that it feeds
+# to `ar -M`. The native UCRT64 ar cannot open them, so convert absolute addlib
+# paths to Windows paths first. Every other ar call passes through unchanged.
+if [ "$1" = "-M" ]; then
+  while IFS= read -r line; do
+    case "$line" in
+      "addlib /"*) printf 'addlib %s\\n' "$(cygpath -m "${line#addlib }")" ;;
+      *) printf '%s\\n' "$line" ;;
+    esac
+  done | ar "$@"
+else
+  exec ar "$@"
+fi
+"""
 
-    On Windows two make branches both rebuild subprojects/zydis (rm -rf, then
-    mv), and the libr_shlr.lib archive step can run between them and fail on a
-    missing libzydis.a. Build radare2 serially there.
+
+def radare2_make_arguments(work_root: Path, os_name: str | None = None) -> list[str]:
+    """Return extra make arguments radare2 needs on one host.
+
+    On Windows radare2 archives libr_shlr.lib with `ar -M` and an MRI script
+    whose absolute entries (subprojects/zydis/libzydis.a) are MSYS paths, which
+    the native ar reports as missing. Route ar through a wrapper that converts
+    those paths with cygpath.
     """
-    return 1 if (os_name or host_os()) == "windows" else jobs
+    if (os_name or host_os()) != "windows":
+        return []
+    wrapper = work_root / "radare2-mri-ar.sh"
+    wrapper.write_text(MRI_AR_WRAPPER, encoding="utf-8", newline="\n")
+    return [f"AR=sh {wrapper.as_posix()}"]
 
 
-def build_radare2(source: Path, prefix: Path, jobs: int) -> None:
+def build_radare2(source: Path, prefix: Path, jobs: int, work_root: Path) -> None:
     make = shutil.which("gmake") or shutil.which("make")
     if make is None:
         raise ValueError("radare2 engine build requires GNU make or make")
     environment = radare2_environment()
-    run([make, f"-j{radare2_make_jobs(jobs)}"], source, environment)
-    run([make, "install"], source, environment)
+    arguments = radare2_make_arguments(work_root)
+    run([make, f"-j{jobs}", *arguments], source, environment)
+    run([make, "install", *arguments], source, environment)
 
 
 def engine_environment(prefix: Path) -> dict[str, str]:
@@ -227,7 +250,7 @@ def build(target: str, work_root: Path, output: Path, jobs: int) -> None:
     apply_radare2_patch(radare2, patch_file)
     prefix = work_root / "prefix"
     configure_radare2(radare2, prefix)
-    build_radare2(radare2, prefix, jobs)
+    build_radare2(radare2, prefix, jobs, work_root)
     build_r2ghidra(r2ghidra, prefix, work_root, jobs)
     verify_pins(radare2, r2ghidra)
     package_engine(prefix, radare2, r2ghidra, output)

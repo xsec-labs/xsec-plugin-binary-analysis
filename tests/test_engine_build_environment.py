@@ -12,7 +12,7 @@ from unittest import mock
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-from build_engine_bundle import r2ghidra_environment, radare2_configure_command, radare2_environment, radare2_make_jobs
+from build_engine_bundle import r2ghidra_environment, radare2_configure_command, radare2_environment, radare2_make_arguments
 
 # A C++20 static archive whose first member also needs a symbol nothing
 # provides, linked into a C++14 executable: the same shape as r2ghidra's
@@ -83,10 +83,36 @@ class Radare2ConfigureTests(unittest.TestCase):
                 with self.subTest(os_name=os_name):
                     self.assertEqual(radare2_environment(os_name)["CFLAGS"], "-O2")
 
-    def test_windows_builds_radare2_serially(self) -> None:
-        self.assertEqual(radare2_make_jobs(4, "windows"), 1)
-        self.assertEqual(radare2_make_jobs(4, "linux"), 4)
-        self.assertEqual(radare2_make_jobs(4, "darwin"), 4)
+    def test_unix_hosts_need_no_extra_make_arguments(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="xsec-r2-make-") as directory:
+            for os_name in ("linux", "darwin"):
+                with self.subTest(os_name=os_name):
+                    self.assertEqual(radare2_make_arguments(Path(directory), os_name), [])
+            self.assertEqual(list(Path(directory).iterdir()), [])
+
+    @unittest.skipUnless(shutil.which("sh"), "needs sh")
+    def test_windows_ar_wrapper_converts_absolute_mri_paths(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="xsec-r2-ar-") as directory:
+            root = Path(directory)
+            arguments = radare2_make_arguments(root, "windows")
+            wrapper = root / "radare2-mri-ar.sh"
+            self.assertEqual(arguments, [f"AR=sh {wrapper.as_posix()}"])
+            tools = root / "bin"
+            tools.mkdir()
+            (tools / "cygpath").write_text('#!/bin/sh\n[ "$1" = -m ] && printf "D:%s" "$2"\n')
+            (tools / "ar").write_text('#!/bin/sh\nprintf "%s|" "$*" > "$AR_LOG"\ncat >> "$AR_LOG"\n')
+            for tool in tools.iterdir():
+                tool.chmod(0o755)
+            log = root / "ar.log"
+            environment = {**os.environ, "PATH": f"{tools}{os.pathsep}{os.environ['PATH']}", "AR_LOG": str(log)}
+            mri = "create libr_shlr.lib\naddlib ar/libr_ar.a\naddlib /d/a/_temp/zydis/libzydis.a\nsave\nend\n"
+            subprocess.run(["sh", str(wrapper), "-M"], input=mri, text=True, check=True, env=environment)
+            self.assertEqual(
+                log.read_text(),
+                "-M|create libr_shlr.lib\naddlib ar/libr_ar.a\naddlib D:/d/a/_temp/zydis/libzydis.a\nsave\nend\n",
+            )
+            subprocess.run(["sh", str(wrapper), "rcs", "libsdb.lib", "a.o"], input="", text=True, check=True, env=environment)
+            self.assertEqual(log.read_text(), "rcs libsdb.lib a.o|")
 
     def test_unix_hosts_keep_automatic_detection(self) -> None:
         prefix = Path("/tmp/prefix")
