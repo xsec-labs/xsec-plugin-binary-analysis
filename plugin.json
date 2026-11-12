@@ -14,8 +14,7 @@
       "engines": { "xsec": ">=0.1.0", "pluginApi": "^1.5.0" },
       "entrypoints": {
         "frontend": "./com.xsec.desktop/frontend/index.js",
-        "native": "builtin:com.xsec.binary-analysis",
-        "sidecar": "./bin/binary-analysis-mcp"
+        "native": "builtin:com.xsec.binary-analysis"
       },
       "activationEvents": ["onWorkspaceTool:binary-analysis", "onAgentTool:binary_sample_import"],
       "permissions": {
