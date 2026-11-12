@@ -44,6 +44,7 @@ jobs:
             [ -n "$extra" ] && echo "$(basename "$image"): $extra"
           done
           grep -n "LDFLAGS" /d/a/_temp/engine-work/sources/radare2/config-user.mk 2>/dev/null || true
+          exit 0
       - name: Report the bundle
         if: always()
         shell: pwsh
@@ -54,6 +55,7 @@ jobs:
             Get-ChildItem -File (Join-Path $root 'radare2\bin') | Format-Table Name,Length
           }
       - name: Decompile with the sidecar's cleared environment
+        if: always()
         shell: pwsh
         run: |
           $script = @'
