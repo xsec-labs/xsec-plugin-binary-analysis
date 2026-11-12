@@ -73,12 +73,23 @@ def apply_radare2_patch(source: Path, patch_file: Path) -> None:
     run([*git_apply, str(patch_file)], source)
 
 
+def radare2_configure_command(prefix: Path, os_name: str | None = None) -> list[str]:
+    """Return radare2's acr configure command for one host.
+
+    Under MSYS2 the build host is mingw64_nt-*, which radare2's configure does
+    not map to an OS type (it knows only mingw32_nt), so make stops with
+    "Unknown platform". Name the Windows OS type explicitly, as radare2's own
+    sys/mingw64.sh does.
+    """
+    command = ["./configure", "--without-gpl", f"--prefix={prefix}"]
+    if (os_name or host_os()) == "windows":
+        command = ["sh", "configure", "--with-ostype=windows", *command[1:]]
+    return command
+
+
 def configure_radare2(source: Path, prefix: Path) -> None:
     seed_no_gpl_plugin_config(source)
-    command = ["./configure", "--without-gpl", f"--prefix={prefix}"]
-    if os.name == "nt":
-        command = ["sh", "configure", *command[1:]]
-    run(command, source)
+    run(radare2_configure_command(prefix), source)
     helper = Path(__file__).with_name("dedupe_radare2_plugin_config.py")
     run([sys.executable, str(helper), "--source", str(source)], source)
 
