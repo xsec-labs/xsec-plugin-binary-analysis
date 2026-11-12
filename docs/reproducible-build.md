@@ -64,10 +64,12 @@ build, which targets MSVC or Linux cross builds:
 - r2ghidra is compiled with -D_WINDOWS and a forced compat header that
   renames the scanner's isatty stub, which is defined under _WIN32.
 - radare2 links libgcc statically, and r2ghidra links libgcc, libstdc++ and
-  winpthread statically, so the bundle ships no MinGW runtime DLLs.
+  winpthread statically, so the bundle ships no MinGW runtime DLLs. The
+  winpthreads notice is in licenses/winpthreads.txt.
 - The packager reads plugins from lib/radare2/plugins and copies the libr
   DLLs that r2.exe and the plugins import next to r2.exe. Any other import
-  must be a Windows system DLL from a fixed list, otherwise packaging fails.
+  must be a Windows API set (api-ms-win-*, ext-ms-*) or a system DLL from a
+  fixed list, otherwise packaging fails.
 
 None of this changes the pinned sources or their patch digests.
 
