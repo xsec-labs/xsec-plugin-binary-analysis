@@ -167,7 +167,27 @@ def engine_environment(prefix: Path) -> dict[str, str]:
     return environment
 
 
-def r2ghidra_environment(prefix: Path, os_name: str | None = None) -> dict[str, str]:
+GHIDRA_MINGW_COMPAT = """/* Forced include for r2ghidra C++ sources under MinGW GCC (see
+ * r2ghidra_environment). Declare the CRT isatty first, then rename the
+ * static isatty stub that the flex scanner slghscan.cc defines for _WINDOWS
+ * so it no longer conflicts with MinGW's io.h declaration. */
+#ifndef XSEC_GHIDRA_MINGW_COMPAT_H
+#define XSEC_GHIDRA_MINGW_COMPAT_H
+#include <io.h>
+#define isatty xsec_ghidra_scanner_isatty
+#endif
+"""
+
+
+def write_ghidra_mingw_compat(work_root: Path) -> Path:
+    header = work_root / "ghidra-mingw-compat.h"
+    header.write_text(GHIDRA_MINGW_COMPAT, encoding="utf-8", newline="\n")
+    return header
+
+
+def r2ghidra_environment(
+    prefix: Path, os_name: str | None = None, compat_header: Path | None = None
+) -> dict[str, str]:
     """Return the r2ghidra build environment for one host.
 
     r2ghidra builds its ghidra-native archives as C++20 but links sleighc as
@@ -185,6 +205,8 @@ def r2ghidra_environment(prefix: Path, os_name: str | None = None) -> dict[str, 
     On Windows r2ghidra defines _WINDOWS only for MSVC. Under MinGW GCC the
     Ghidra sources then take their POSIX branches (dirent d_type in
     filemanage.cc), which MinGW lacks, so define it for the Win32 branches.
+    With _WINDOWS the flex scanner defines a static isatty stub that clashes
+    with MinGW's io.h, which the forced compat header resolves.
     """
     environment = engine_environment(prefix)
     host = os_name or host_os()
@@ -192,15 +214,18 @@ def r2ghidra_environment(prefix: Path, os_name: str | None = None) -> dict[str, 
         existing = environment.get("LDFLAGS", "").strip()
         environment["LDFLAGS"] = f"-lstdc++ {existing}".strip()
     elif host == "windows":
+        if compat_header is None:
+            raise ValueError("Windows r2ghidra builds require the MinGW compat header")
         existing = environment.get("CXXFLAGS", "").strip()
-        environment["CXXFLAGS"] = f"{existing} -D_WINDOWS".strip()
+        environment["CXXFLAGS"] = f"{existing} -D_WINDOWS -include {compat_header.as_posix()}".strip()
     return environment
 
 
 def build_r2ghidra(source: Path, prefix: Path, work_root: Path, jobs: int) -> None:
     build = work_root / "r2ghidra-build"
     build.mkdir()
-    environment = r2ghidra_environment(prefix)
+    compat_header = write_ghidra_mingw_compat(work_root) if host_os() == "windows" else None
+    environment = r2ghidra_environment(prefix, compat_header=compat_header)
     run(
         [
             "meson",

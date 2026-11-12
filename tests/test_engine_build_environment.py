@@ -12,7 +12,7 @@ from unittest import mock
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-from build_engine_bundle import r2ghidra_environment, radare2_configure_command, radare2_environment, radare2_make_arguments
+from build_engine_bundle import write_ghidra_mingw_compat, r2ghidra_environment, radare2_configure_command, radare2_environment, radare2_make_arguments
 
 # A C++20 static archive whose first member also needs a symbol nothing
 # provides, linked into a C++14 executable: the same shape as r2ghidra's
@@ -72,7 +72,14 @@ class R2GhidraEnvironmentTests(unittest.TestCase):
             os.environ, {"CXXFLAGS": "-O2"}
         ):
             prefix = Path(directory)
-            self.assertEqual(r2ghidra_environment(prefix, "windows")["CXXFLAGS"], "-O2 -D_WINDOWS")
+            header = write_ghidra_mingw_compat(prefix)
+            self.assertEqual(
+                r2ghidra_environment(prefix, "windows", header)["CXXFLAGS"],
+                f"-O2 -D_WINDOWS -include {header.as_posix()}",
+            )
+            self.assertIn("#define isatty xsec_ghidra_scanner_isatty", header.read_text())
+            with self.assertRaisesRegex(ValueError, "compat header"):
+                r2ghidra_environment(prefix, "windows")
             for os_name in ("linux", "darwin"):
                 with self.subTest(os_name=os_name):
                     self.assertEqual(r2ghidra_environment(prefix, os_name)["CXXFLAGS"], "-O2")
