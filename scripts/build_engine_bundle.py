@@ -101,10 +101,32 @@ def engine_environment(prefix: Path) -> dict[str, str]:
     return environment
 
 
+def r2ghidra_environment(prefix: Path, os_name: str | None = None) -> dict[str, str]:
+    """Return the r2ghidra build environment for one host.
+
+    r2ghidra builds its ghidra-native archives as C++20 but links sleighc as
+    C++14. When the C++14 objects are compiled without _GLIBCXX_ASSERTIONS
+    (Meson before 1.4, such as Ubuntu 24.04's 1.3.2, or any Meson with
+    b_ndebug=true), they reference std::string members that libstdc++ exports
+    through extern templates. The C++20 archive members
+    carry weak copies of those members, and GNU ld pulls the first such member
+    (sleigh_arch.o, grammar.o) into sleighc before libstdc++ is searched. Those
+    members need the decompiler library, which sleighc does not link, and the
+    link fails with undefined ghidra::Architecture and TypeFactory symbols.
+    Meson places LDFLAGS ahead of the linked archives, so naming libstdc++
+    there resolves the references from the shared library instead.
+    """
+    environment = engine_environment(prefix)
+    if (os_name or host_os()) == "linux":
+        existing = environment.get("LDFLAGS", "").strip()
+        environment["LDFLAGS"] = f"-lstdc++ {existing}".strip()
+    return environment
+
+
 def build_r2ghidra(source: Path, prefix: Path, work_root: Path, jobs: int) -> None:
     build = work_root / "r2ghidra-build"
     build.mkdir()
-    environment = engine_environment(prefix)
+    environment = r2ghidra_environment(prefix)
     run(
         [
             "meson",
