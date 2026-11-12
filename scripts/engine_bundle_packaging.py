@@ -72,6 +72,9 @@ def copy_tree_files(source: Path, destination: Path, excluded: frozenset[str] = 
 
 
 def copy_platform_libraries(prefix: Path, output_prefix: Path) -> None:
+    if os.name == "nt":
+        # Windows gets its DLLs from the import closure (copy_windows_dlls).
+        return
     library_source = prefix / "lib"
     library_target = output_prefix / "lib"
     library_target.mkdir(parents=True, exist_ok=True)
@@ -79,14 +82,77 @@ def copy_platform_libraries(prefix: Path, output_prefix: Path) -> None:
         if source.is_file() and not source.is_symlink() and is_dynamic_library(source):
             target_name = linux_soname(source) if sys.platform.startswith("linux") else source.name
             shutil.copy2(source, library_target / target_name)
-    if os.name == "nt":
-        windows_bin = prefix / "bin"
-        if windows_bin.is_dir():
-            binary_bin = output_prefix / "bin"
-            binary_bin.mkdir(parents=True, exist_ok=True)
-            for entry in sorted(windows_bin.iterdir()):
-                if entry.is_file() and not entry.is_symlink() and entry.suffix.casefold() == ".dll":
-                    shutil.copy2(entry, binary_bin / entry.name)
+
+
+def pe_imports(image: Path, objdump: str) -> list[str]:
+    output = run_checked([objdump, "-p", str(image)])
+    return [line.split("DLL Name:", 1)[1].strip() for line in output.splitlines() if "DLL Name:" in line]
+
+
+WINDOWS_SYSTEM_DLLS = frozenset(
+    name.casefold()
+    for name in (
+        "advapi32.dll", "bcrypt.dll", "cfgmgr32.dll", "comctl32.dll", "comdlg32.dll",
+        "crypt32.dll", "dbghelp.dll", "dnsapi.dll", "gdi32.dll", "imagehlp.dll",
+        "iphlpapi.dll", "kernel32.dll", "mswsock.dll", "netapi32.dll", "normaliz.dll",
+        "ntdll.dll", "ole32.dll", "oleaut32.dll", "powrprof.dll", "psapi.dll",
+        "rpcrt4.dll", "secur32.dll", "setupapi.dll", "shell32.dll", "shlwapi.dll",
+        "ucrtbase.dll", "user32.dll", "userenv.dll", "version.dll", "winhttp.dll",
+        "wininet.dll", "winmm.dll", "ws2_32.dll", "wsock32.dll",
+    )
+)
+
+
+def is_windows_system_dll(name: str) -> bool:
+    folded = name.casefold()
+    return folded.startswith(("api-ms-win-", "ext-ms-")) or folded in WINDOWS_SYSTEM_DLLS
+
+
+def copy_windows_dlls(
+    output_prefix: Path, search_dirs: list[Path], objdump: str | None = None
+) -> list[str]:
+    """Copy the engine DLLs that r2.exe and the plugins import.
+
+    radare2's make install on Windows leaves versioned libr DLLs and symlinks
+    under lib/. Copy each import found in the install prefix by its imported
+    name next to r2.exe, where the Windows loader finds it for the executable
+    and for plugins loaded later. Every other import must be a Windows system
+    DLL from a fixed list: the GCC runtime is linked statically, so a toolchain
+    DLL showing up here is a build regression, not something to ship.
+    """
+    objdump = objdump or shutil.which("objdump")
+    if not objdump:
+        raise ValueError("Windows engine packaging requires objdump")
+    binary_dir = output_prefix / "bin"
+    pending = [binary_dir / "r2.exe"]
+    pending.extend(sorted((output_prefix / "plugins").rglob("*.dll")))
+    copied: list[str] = []
+    seen: set[str] = set()
+    while pending:
+        image = pending.pop(0)
+        for name in pe_imports(image, objdump):
+            key = name.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            source = next(
+                (
+                    candidate.resolve(strict=True)
+                    for directory in search_dirs
+                    for candidate in [directory / name]
+                    if candidate.exists()
+                ),
+                None,
+            )
+            if source is None:
+                if is_windows_system_dll(name):
+                    continue
+                raise ValueError(f"Windows engine image {image.name} imports {name}, which is not an engine or system DLL")
+            target = binary_dir / name
+            shutil.copy2(source, target)
+            copied.append(name)
+            pending.append(target)
+    return copied
 
 
 def linux_soname(path: Path) -> str:
@@ -100,7 +166,11 @@ def linux_soname(path: Path) -> str:
 
 
 def locate_plugin_source(prefix: Path) -> Path:
-    candidate = prefix / "lib" / "radare2" / ENGINE_VERSION
+    # r2ghidra installs into `radare2 -HR2_LIBR_PLUGINS`, the versioned
+    # directory. On Windows that query cannot run during the build, and
+    # r2ghidra falls back to lib/radare2/plugins.
+    relative = ("lib", "radare2", "plugins") if os.name == "nt" else ("lib", "radare2", ENGINE_VERSION)
+    candidate = prefix.joinpath(*relative)
     if not candidate.is_dir():
         raise ValueError("radare2 install prefix has no versioned plugin directory")
     return candidate.resolve(strict=True)
@@ -127,8 +197,10 @@ def copy_runtime(
     shutil.copy2(resolve_engine_binary(prefix), binary_target)
     copy_platform_libraries(prefix, output_prefix)
     plugin_dir = output_prefix / "plugins"
-    copy_tree_files(plugin_source, plugin_dir, frozenset({"r2ghidra_sleigh"}))
+    copy_tree_files(plugin_source, plugin_dir, frozenset({"r2ghidra_sleigh", "libcore_r2ghidra.dll.a"}))
     normalize_engine_plugin_assets(plugin_dir)
+    if os.name == "nt":
+        copy_windows_dlls(output_prefix, [prefix / "lib", prefix / "bin"])
     strip_debug_symbols(output_root)
     copy_tree_files(prefix / "share" / "radare2", output_prefix / "share" / "radare2")
     copy_tree_files(sleigh_source, output_root / "sleigh")

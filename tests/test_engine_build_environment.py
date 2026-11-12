@@ -7,11 +7,12 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-from build_engine_bundle import r2ghidra_environment
+from build_engine_bundle import WINDOWS_STATIC_RUNTIME, write_ghidra_mingw_compat, r2ghidra_environment, radare2_configure_command, radare2_environment, radare2_make_arguments
 
 # A C++20 static archive whose first member also needs a symbol nothing
 # provides, linked into a C++14 executable: the same shape as r2ghidra's
@@ -61,10 +62,103 @@ class R2GhidraEnvironmentTests(unittest.TestCase):
     def test_other_hosts_keep_the_engine_environment(self) -> None:
         with tempfile.TemporaryDirectory(prefix="xsec-r2ghidra-env-") as directory:
             prefix = Path(directory)
-            for os_name in ("darwin", "windows"):
+            header = write_ghidra_mingw_compat(prefix)
+            environment = r2ghidra_environment(prefix, "darwin", header)
+            self.assertEqual(environment.get("LDFLAGS"), os.environ.get("LDFLAGS"))
+
+    def test_windows_links_the_gcc_runtime_statically(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="xsec-r2ghidra-env-") as directory, mock.patch.dict(
+            os.environ, {"LDFLAGS": "-L/ucrt64/lib"}
+        ):
+            prefix = Path(directory)
+            header = write_ghidra_mingw_compat(prefix)
+            ldflags = r2ghidra_environment(prefix, "windows", header)["LDFLAGS"]
+            self.assertEqual(ldflags, f"{WINDOWS_STATIC_RUNTIME} -L/ucrt64/lib")
+
+    def test_windows_selects_the_ghidra_win32_sources(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="xsec-r2ghidra-env-") as directory, mock.patch.dict(
+            os.environ, {"CXXFLAGS": "-O2"}
+        ):
+            prefix = Path(directory)
+            header = write_ghidra_mingw_compat(prefix)
+            self.assertEqual(
+                r2ghidra_environment(prefix, "windows", header)["CXXFLAGS"],
+                f"-O2 -D_WINDOWS -include {header.as_posix()}",
+            )
+            self.assertIn("#define isatty xsec_ghidra_scanner_isatty", header.read_text())
+            with self.assertRaisesRegex(ValueError, "compat header"):
+                r2ghidra_environment(prefix, "windows")
+            for os_name in ("linux", "darwin"):
                 with self.subTest(os_name=os_name):
-                    environment = r2ghidra_environment(prefix, os_name)
-                    self.assertEqual(environment.get("LDFLAGS"), os.environ.get("LDFLAGS"))
+                    self.assertEqual(r2ghidra_environment(prefix, os_name)["CXXFLAGS"], "-O2")
+
+
+class Radare2ConfigureTests(unittest.TestCase):
+    def test_windows_names_its_os_type(self) -> None:
+        prefix = Path("D:/a/_temp/prefix")
+        self.assertEqual(
+            radare2_configure_command(prefix, "windows"),
+            ["sh", "configure", "--with-ostype=windows", "--without-gpl", f"--prefix={prefix}"],
+        )
+
+    def test_windows_keeps_incompatible_pointer_types_a_warning(self) -> None:
+        with mock.patch.dict(os.environ, {"CFLAGS": "-O2", "LDFLAGS": "-L/ucrt64/lib"}):
+            os.environ.pop("MSYS", None)
+            windows = radare2_environment("windows")
+            self.assertEqual(windows["CFLAGS"], "-O2 -Wno-error=incompatible-pointer-types")
+            self.assertEqual(windows["MSYS"], "winsymlinks:nativestrict")
+            self.assertEqual(windows["LDFLAGS"], "-static-libgcc -L/ucrt64/lib")
+            for os_name in ("linux", "darwin"):
+                with self.subTest(os_name=os_name):
+                    self.assertEqual(radare2_environment(os_name)["CFLAGS"], "-O2")
+                    self.assertEqual(radare2_environment(os_name)["LDFLAGS"], "-L/ucrt64/lib")
+                    self.assertNotIn("MSYS", radare2_environment(os_name))
+
+    def test_unix_hosts_need_no_extra_make_arguments(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="xsec-r2-make-") as directory:
+            for os_name in ("linux", "darwin"):
+                with self.subTest(os_name=os_name):
+                    self.assertEqual(radare2_make_arguments(Path(directory), os_name), [])
+            self.assertEqual(list(Path(directory).iterdir()), [])
+
+    @unittest.skipUnless(shutil.which("sh"), "needs sh")
+    def test_windows_ar_wrapper_converts_absolute_mri_paths(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="xsec-r2-ar-") as directory:
+            root = Path(directory)
+            arguments = radare2_make_arguments(root, "windows")
+            wrapper = root / "radare2-mri-ar.sh"
+            self.assertEqual(arguments, [f"AR=sh {wrapper.as_posix()}"])
+            tools = root / "bin"
+            tools.mkdir()
+            (tools / "cygpath").write_text('#!/bin/sh\n[ "$1" = -m ] && printf "D:%s" "$2"\n')
+            (tools / "ar").write_text('#!/bin/sh\nprintf "%s|" "$*" > "$AR_LOG"\ncat >> "$AR_LOG"\n')
+            for tool in tools.iterdir():
+                tool.chmod(0o755)
+            log = root / "ar.log"
+            environment = {**os.environ, "PATH": f"{tools}{os.pathsep}{os.environ['PATH']}", "AR_LOG": str(log)}
+            mri = "create libr_shlr.lib\naddlib ar/libr_ar.a\naddlib /d/a/_temp/zydis/libzydis.a\nsave\nend\n"
+            subprocess.run(["sh", str(wrapper), "-M"], input=mri, text=True, check=True, env=environment)
+            self.assertEqual(
+                log.read_text(),
+                "-M|create libr_shlr.lib\naddlib ar/libr_ar.a\naddlib D:/d/a/_temp/zydis/libzydis.a\nsave\nend\n",
+            )
+            subprocess.run(["sh", str(wrapper), "rcs", "libsdb.lib", "a.o"], input="", text=True, check=True, env=environment)
+            self.assertEqual(log.read_text(), "rcs libsdb.lib a.o|")
+
+            log.unlink()
+            (tools / "cygpath").write_text("#!/bin/sh\nexit 1\n")
+            failed = subprocess.run(["sh", str(wrapper), "-M"], input=mri, text=True, env=environment)
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertFalse(log.exists(), "ar ran with an unconverted MRI script")
+
+    def test_unix_hosts_keep_automatic_detection(self) -> None:
+        prefix = Path("/tmp/prefix")
+        for os_name in ("linux", "darwin"):
+            with self.subTest(os_name=os_name):
+                self.assertEqual(
+                    radare2_configure_command(prefix, os_name),
+                    ["./configure", "--without-gpl", f"--prefix={prefix}"],
+                )
 
 
 @unittest.skipUnless(sys.platform.startswith("linux"), "the link-order failure is specific to GNU ld")
