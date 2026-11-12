@@ -48,7 +48,18 @@ def resolve_engine_binary(prefix: Path) -> Path:
     raise ValueError("radare2 install prefix has no executable")
 
 
-def copy_tree_files(source: Path, destination: Path, excluded: frozenset[str] = frozenset()) -> None:
+# r2ghidra loads the compiled .sla files named by each .ldefs entry. The
+# .slaspec/.sinc sources only feed sleighc at build time, and leaving them out
+# keeps the Linux plugin package under the Factory's 100 MiB limit.
+SLEIGH_SOURCE_SUFFIXES = frozenset({".sinc", ".slaspec"})
+
+
+def copy_tree_files(
+    source: Path,
+    destination: Path,
+    excluded: frozenset[str] = frozenset(),
+    excluded_suffixes: frozenset[str] = frozenset(),
+) -> None:
     if not source.is_dir():
         raise ValueError(f"engine packaging directory is missing: {source.name}")
     for current, directories, filenames in os.walk(source, followlinks=False):
@@ -64,7 +75,7 @@ def copy_tree_files(source: Path, destination: Path, excluded: frozenset[str] = 
             relative_file = source_file.relative_to(source)
             if source_file.is_symlink() or not source_file.is_file():
                 continue
-            if relative_file.as_posix() in excluded:
+            if relative_file.as_posix() in excluded or source_file.suffix in excluded_suffixes:
                 continue
             target = destination / relative_file
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -203,7 +214,7 @@ def copy_runtime(
         copy_windows_dlls(output_prefix, [prefix / "lib", prefix / "bin"])
     strip_debug_symbols(output_root)
     copy_tree_files(prefix / "share" / "radare2", output_prefix / "share" / "radare2")
-    copy_tree_files(sleigh_source, output_root / "sleigh")
+    copy_tree_files(sleigh_source, output_root / "sleigh", excluded_suffixes=SLEIGH_SOURCE_SUFFIXES)
     return binary_target
 
 
