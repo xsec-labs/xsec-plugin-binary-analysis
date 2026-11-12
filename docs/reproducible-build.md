@@ -49,7 +49,24 @@ checks source patches, and writes a relocatable runtime bundle. On Linux it
 passes LDFLAGS=-lstdc++ to the r2ghidra Meson build so that GNU ld resolves
 std::string members from libstdc++ before the ghidra-native archives; without
 it, sleighc fails to link whenever its C++14 objects are built without
-_GLIBCXX_ASSERTIONS, as Ubuntu 24.04's Meson 1.3.2 does:
+_GLIBCXX_ASSERTIONS, as Ubuntu 24.04's Meson 1.3.2 does.
+
+On Windows (MSYS2 UCRT64 with MinGW GCC) the builder adapts the upstream
+build, which targets MSVC or Linux cross builds:
+- radare2 is configured with --with-ostype=windows, because its configure
+  does not recognise mingw64_nt hosts.
+- GCC 14's incompatible-pointer-types error stays a warning.
+- MSYS creates native symlinks for make install.
+- ar runs through a wrapper that converts the MSYS paths in radare2's MRI
+  archive script.
+- r2ghidra is compiled with -D_WINDOWS and a forced compat header that
+  renames the scanner's isatty stub.
+- The packager reads plugins from lib/radare2/plugins and copies every
+  non-system DLL that r2.exe and the plugins import next to r2.exe. That
+  covers the libr DLLs and the MinGW runtime (libstdc++-6, libgcc_s_seh-1,
+  libwinpthread-1), so the engine runs without MSYS2.
+None of this changes the pinned sources or their patch digests.
+
 
     python3 scripts/build_engine_bundle.py --target <rust-target> --work-root <work-dir> --output <artifact>/engine --jobs 4
 
