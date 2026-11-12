@@ -48,14 +48,38 @@ jobs:
             Get-ChildItem -Recurse -File $root | Measure-Object -Sum Length | Format-List Count,Sum
             Get-ChildItem -File (Join-Path $root 'radare2\bin') | Format-Table Name,Length
           }
-      - name: Run r2.exe without MSYS2 on PATH
+      - name: Decompile with the sidecar's cleared environment
         shell: pwsh
         run: |
-          $root = Join-Path $env:RUNNER_TEMP 'out\binary-engine'
-          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
-          $env:R2_PREFIX = Join-Path $root 'radare2'
-          $env:R2_LIBR_PLUGINS = Join-Path $root 'radare2\plugins'
-          & (Join-Path $root 'radare2\bin\r2.exe') -v
-          if ($LASTEXITCODE -ne 0) { throw "r2.exe exited $LASTEXITCODE (0xC0000135 means a missing DLL)" }
-          & (Join-Path $root 'radare2\bin\r2.exe') -qc 'Lc' -
-          & (Join-Path $root 'radare2\bin\r2.exe') -qc 'pdg @ entry0' 'C:\Windows\System32\cmd.exe'
+          $script = @'
+          import os, subprocess, sys, tempfile
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"]) / "out" / "binary-engine"
+          prefix = root / "radare2"
+          toolchain = [p.name for p in root.rglob("*.dll") if p.name.lower().startswith(("libstdc++", "libgcc", "libwinpthread"))]
+          if toolchain:
+              sys.exit(f"bundle ships toolchain runtime DLLs: {toolchain}")
+          home = Path(tempfile.mkdtemp(prefix="r2home-"))
+          base = {
+              "R2_PREFIX": str(prefix),
+              "R2_HOME": str(home),
+              "R2_LIBR_PLUGINS": str(prefix / "plugins"),
+              "SLEIGHHOME": str(root / "sleigh"),
+              "PATH": os.pathsep.join(str(prefix / d) for d in ("bin", "lib", "plugins")),
+          }
+          sample = r"C:\Windows\System32\cmd.exe"
+          for label, env in (("cleared", base), ("cleared+SystemRoot", {**base, "SystemRoot": os.environ["SystemRoot"]})):
+              result = subprocess.run(
+                  [str(prefix / "bin" / "r2.exe"), "-2", "-q0", "-c", "af @ entry0; pdg @ entry0", sample],
+                  env=env, stdin=subprocess.DEVNULL, capture_output=True, timeout=300,
+              )
+              out = result.stdout.decode(errors="replace").strip("\0").strip()
+              print(f"== {label}: exit {result.returncode:#x}, {len(out)} chars")
+              print(out[:1500])
+              print(result.stderr.decode(errors="replace")[:1500])
+              if result.returncode != 0 or "{" not in out:
+                  sys.exit(f"{label}: no decompiler output")
+          '@
+          $file = Join-Path $env:RUNNER_TEMP 'smoke.py'
+          Set-Content -Path $file -Value $script
+          python $file
