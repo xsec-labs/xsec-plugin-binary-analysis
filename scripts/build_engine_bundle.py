@@ -181,11 +181,19 @@ def r2ghidra_environment(prefix: Path, os_name: str | None = None) -> dict[str, 
     link fails with undefined ghidra::Architecture and TypeFactory symbols.
     Meson places LDFLAGS ahead of the linked archives, so naming libstdc++
     there resolves the references from the shared library instead.
+
+    On Windows r2ghidra defines _WINDOWS only for MSVC. Under MinGW GCC the
+    Ghidra sources then take their POSIX branches (dirent d_type in
+    filemanage.cc), which MinGW lacks, so define it for the Win32 branches.
     """
     environment = engine_environment(prefix)
-    if (os_name or host_os()) == "linux":
+    host = os_name or host_os()
+    if host == "linux":
         existing = environment.get("LDFLAGS", "").strip()
         environment["LDFLAGS"] = f"-lstdc++ {existing}".strip()
+    elif host == "windows":
+        existing = environment.get("CXXFLAGS", "").strip()
+        environment["CXXFLAGS"] = f"{existing} -D_WINDOWS".strip()
     return environment
 
 

@@ -67,6 +67,16 @@ class R2GhidraEnvironmentTests(unittest.TestCase):
                     environment = r2ghidra_environment(prefix, os_name)
                     self.assertEqual(environment.get("LDFLAGS"), os.environ.get("LDFLAGS"))
 
+    def test_windows_selects_the_ghidra_win32_sources(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="xsec-r2ghidra-env-") as directory, mock.patch.dict(
+            os.environ, {"CXXFLAGS": "-O2"}
+        ):
+            prefix = Path(directory)
+            self.assertEqual(r2ghidra_environment(prefix, "windows")["CXXFLAGS"], "-O2 -D_WINDOWS")
+            for os_name in ("linux", "darwin"):
+                with self.subTest(os_name=os_name):
+                    self.assertEqual(r2ghidra_environment(prefix, os_name)["CXXFLAGS"], "-O2")
+
 
 class Radare2ConfigureTests(unittest.TestCase):
     def test_windows_names_its_os_type(self) -> None:
