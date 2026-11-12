@@ -93,7 +93,9 @@ def radare2_environment(os_name: str | None = None) -> dict[str, str]:
     radare2's make build compiles Windows sources with -DUNICODE, where
     r_sys_whoami passes a char buffer to GetUserName (GetUserNameW). GCC 14
     and later reject that as an incompatible pointer type, so keep it a
-    warning on Windows only, and make MSYS create real symlinks.
+    warning on Windows only, and make MSYS create real symlinks. The libr
+    DLLs otherwise import MinGW's libgcc_s_seh-1.dll, so link libgcc
+    statically there as r2ghidra does.
     """
     environment = os.environ.copy()
     if (os_name or host_os()) == "windows":
@@ -103,6 +105,8 @@ def radare2_environment(os_name: str | None = None) -> dict[str, str]:
         # copies directories by default, so the second rm fails on the copy.
         msys = environment.get("MSYS", "").strip()
         environment["MSYS"] = f"{msys} winsymlinks:nativestrict".strip()
+        ldflags = environment.get("LDFLAGS", "").strip()
+        environment["LDFLAGS"] = f"-static-libgcc {ldflags}".strip()
     return environment
 
 
@@ -118,12 +122,17 @@ MRI_AR_WRAPPER = """#!/bin/sh
 # to `ar -M`. The native UCRT64 ar cannot open them, so convert absolute addlib
 # paths to Windows paths first. Every other ar call passes through unchanged.
 if [ "$1" = "-M" ]; then
-  while IFS= read -r line; do
+  # Build the whole script first: GNU ar ignores a malformed `addlib` line and
+  # still exits 0, so a cygpath failure must stop the build here.
+  script=$(while IFS= read -r line; do
     case "$line" in
-      "addlib /"*) printf 'addlib %s\\n' "$(cygpath -m "${line#addlib }")" ;;
+      "addlib /"*)
+        path=$(cygpath -m "${line#addlib }") || exit 1
+        printf 'addlib %s\\n' "$path" ;;
       *) printf '%s\\n' "$line" ;;
     esac
-  done | ar "$@"
+  done) || exit 1
+  printf '%s\\n' "$script" | ar "$@"
 else
   exec ar "$@"
 fi
@@ -169,14 +178,22 @@ def engine_environment(prefix: Path) -> dict[str, str]:
 
 GHIDRA_MINGW_COMPAT = """/* Forced include for r2ghidra C++ sources under MinGW GCC (see
  * r2ghidra_environment). Declare the CRT isatty first, then rename the
- * static isatty stub that the flex scanner slghscan.cc defines for _WINDOWS
- * so it no longer conflicts with MinGW's io.h declaration. */
+ * static isatty stub that the flex scanner slghscan.cc defines under _WIN32
+ * (always set by MinGW) so it no longer conflicts with MinGW's io.h. */
 #ifndef XSEC_GHIDRA_MINGW_COMPAT_H
 #define XSEC_GHIDRA_MINGW_COMPAT_H
 #include <io.h>
 #define isatty xsec_ghidra_scanner_isatty
 #endif
 """
+
+
+# Meson places LDFLAGS before the objects, so winpthread is pulled in whole
+# rather than by reference; the import library is then never needed.
+WINDOWS_STATIC_RUNTIME = (
+    "-static-libgcc -static-libstdc++ "
+    "-Wl,-Bstatic,--whole-archive,-lwinpthread,--no-whole-archive,-Bdynamic"
+)
 
 
 def write_ghidra_mingw_compat(work_root: Path) -> Path:
@@ -205,8 +222,12 @@ def r2ghidra_environment(
     On Windows r2ghidra defines _WINDOWS only for MSVC. Under MinGW GCC the
     Ghidra sources then take their POSIX branches (dirent d_type in
     filemanage.cc), which MinGW lacks, so define it for the Win32 branches.
-    With _WINDOWS the flex scanner defines a static isatty stub that clashes
-    with MinGW's io.h, which the forced compat header resolves.
+    The flex scanner also defines a static isatty stub under _WIN32 that
+    clashes with MinGW's io.h, which the forced compat header resolves.
+
+    Windows links the GCC runtime (libgcc, libstdc++, winpthread) statically
+    so the engine ships no toolchain DLLs: they are unpinned MSYS2 builds
+    under licenses the engine inventory does not carry.
     """
     environment = engine_environment(prefix)
     host = os_name or host_os()
@@ -218,6 +239,8 @@ def r2ghidra_environment(
             raise ValueError("Windows r2ghidra builds require the MinGW compat header")
         existing = environment.get("CXXFLAGS", "").strip()
         environment["CXXFLAGS"] = f"{existing} -D_WINDOWS -include {compat_header.as_posix()}".strip()
+        existing = environment.get("LDFLAGS", "").strip()
+        environment["LDFLAGS"] = f"{WINDOWS_STATIC_RUNTIME} {existing}".strip()
     return environment
 
 
