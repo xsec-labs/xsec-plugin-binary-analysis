@@ -73,22 +73,86 @@ def apply_radare2_patch(source: Path, patch_file: Path) -> None:
     run([*git_apply, str(patch_file)], source)
 
 
+def radare2_configure_command(prefix: Path, os_name: str | None = None) -> list[str]:
+    """Return radare2's acr configure command for one host.
+
+    Under MSYS2 the build host is mingw64_nt-*, which radare2's configure does
+    not map to an OS type (it knows only mingw32_nt), so make stops with
+    "Unknown platform". Name the Windows OS type explicitly, as radare2's own
+    sys/mingw64.sh does.
+    """
+    command = ["./configure", "--without-gpl", f"--prefix={prefix}"]
+    if (os_name or host_os()) == "windows":
+        command = ["sh", "configure", "--with-ostype=windows", *command[1:]]
+    return command
+
+
+def radare2_environment(os_name: str | None = None) -> dict[str, str]:
+    """Return the radare2 configure and make environment for one host.
+
+    radare2's make build compiles Windows sources with -DUNICODE, where
+    r_sys_whoami passes a char buffer to GetUserName (GetUserNameW). GCC 14
+    and later reject that as an incompatible pointer type, so keep it a
+    warning on Windows only, and make MSYS create real symlinks.
+    """
+    environment = os.environ.copy()
+    if (os_name or host_os()) == "windows":
+        existing = environment.get("CFLAGS", "").strip()
+        environment["CFLAGS"] = f"{existing} -Wno-error=incompatible-pointer-types".strip()
+        # `make install` runs `rm -f last && ln -fs 6.2.2 last` twice. MSYS ln
+        # copies directories by default, so the second rm fails on the copy.
+        msys = environment.get("MSYS", "").strip()
+        environment["MSYS"] = f"{msys} winsymlinks:nativestrict".strip()
+    return environment
+
+
 def configure_radare2(source: Path, prefix: Path) -> None:
     seed_no_gpl_plugin_config(source)
-    command = ["./configure", "--without-gpl", f"--prefix={prefix}"]
-    if os.name == "nt":
-        command = ["sh", "configure", *command[1:]]
-    run(command, source)
+    run(radare2_configure_command(prefix), source, radare2_environment())
     helper = Path(__file__).with_name("dedupe_radare2_plugin_config.py")
     run([sys.executable, str(helper), "--source", str(source)], source)
 
 
-def build_radare2(source: Path, prefix: Path, jobs: int) -> None:
+MRI_AR_WRAPPER = """#!/bin/sh
+# radare2 writes MSYS paths such as /d/a/... into the MRI script that it feeds
+# to `ar -M`. The native UCRT64 ar cannot open them, so convert absolute addlib
+# paths to Windows paths first. Every other ar call passes through unchanged.
+if [ "$1" = "-M" ]; then
+  while IFS= read -r line; do
+    case "$line" in
+      "addlib /"*) printf 'addlib %s\\n' "$(cygpath -m "${line#addlib }")" ;;
+      *) printf '%s\\n' "$line" ;;
+    esac
+  done | ar "$@"
+else
+  exec ar "$@"
+fi
+"""
+
+
+def radare2_make_arguments(work_root: Path, os_name: str | None = None) -> list[str]:
+    """Return extra make arguments radare2 needs on one host.
+
+    On Windows radare2 archives libr_shlr.lib with `ar -M` and an MRI script
+    whose absolute entries (subprojects/zydis/libzydis.a) are MSYS paths, which
+    the native ar reports as missing. Route ar through a wrapper that converts
+    those paths with cygpath.
+    """
+    if (os_name or host_os()) != "windows":
+        return []
+    wrapper = work_root / "radare2-mri-ar.sh"
+    wrapper.write_text(MRI_AR_WRAPPER, encoding="utf-8", newline="\n")
+    return [f"AR=sh {wrapper.as_posix()}"]
+
+
+def build_radare2(source: Path, prefix: Path, jobs: int, work_root: Path) -> None:
     make = shutil.which("gmake") or shutil.which("make")
     if make is None:
         raise ValueError("radare2 engine build requires GNU make or make")
-    run([make, f"-j{jobs}"], source)
-    run([make, "install"], source)
+    environment = radare2_environment()
+    arguments = radare2_make_arguments(work_root)
+    run([make, f"-j{jobs}", *arguments], source, environment)
+    run([make, "install", *arguments], source, environment)
 
 
 def engine_environment(prefix: Path) -> dict[str, str]:
@@ -103,7 +167,27 @@ def engine_environment(prefix: Path) -> dict[str, str]:
     return environment
 
 
-def r2ghidra_environment(prefix: Path, os_name: str | None = None) -> dict[str, str]:
+GHIDRA_MINGW_COMPAT = """/* Forced include for r2ghidra C++ sources under MinGW GCC (see
+ * r2ghidra_environment). Declare the CRT isatty first, then rename the
+ * static isatty stub that the flex scanner slghscan.cc defines for _WINDOWS
+ * so it no longer conflicts with MinGW's io.h declaration. */
+#ifndef XSEC_GHIDRA_MINGW_COMPAT_H
+#define XSEC_GHIDRA_MINGW_COMPAT_H
+#include <io.h>
+#define isatty xsec_ghidra_scanner_isatty
+#endif
+"""
+
+
+def write_ghidra_mingw_compat(work_root: Path) -> Path:
+    header = work_root / "ghidra-mingw-compat.h"
+    header.write_text(GHIDRA_MINGW_COMPAT, encoding="utf-8", newline="\n")
+    return header
+
+
+def r2ghidra_environment(
+    prefix: Path, os_name: str | None = None, compat_header: Path | None = None
+) -> dict[str, str]:
     """Return the r2ghidra build environment for one host.
 
     r2ghidra builds its ghidra-native archives as C++20 but links sleighc as
@@ -117,18 +201,31 @@ def r2ghidra_environment(prefix: Path, os_name: str | None = None) -> dict[str, 
     link fails with undefined ghidra::Architecture and TypeFactory symbols.
     Meson places LDFLAGS ahead of the linked archives, so naming libstdc++
     there resolves the references from the shared library instead.
+
+    On Windows r2ghidra defines _WINDOWS only for MSVC. Under MinGW GCC the
+    Ghidra sources then take their POSIX branches (dirent d_type in
+    filemanage.cc), which MinGW lacks, so define it for the Win32 branches.
+    With _WINDOWS the flex scanner defines a static isatty stub that clashes
+    with MinGW's io.h, which the forced compat header resolves.
     """
     environment = engine_environment(prefix)
-    if (os_name or host_os()) == "linux":
+    host = os_name or host_os()
+    if host == "linux":
         existing = environment.get("LDFLAGS", "").strip()
         environment["LDFLAGS"] = f"-lstdc++ {existing}".strip()
+    elif host == "windows":
+        if compat_header is None:
+            raise ValueError("Windows r2ghidra builds require the MinGW compat header")
+        existing = environment.get("CXXFLAGS", "").strip()
+        environment["CXXFLAGS"] = f"{existing} -D_WINDOWS -include {compat_header.as_posix()}".strip()
     return environment
 
 
 def build_r2ghidra(source: Path, prefix: Path, work_root: Path, jobs: int) -> None:
     build = work_root / "r2ghidra-build"
     build.mkdir()
-    environment = r2ghidra_environment(prefix)
+    compat_header = write_ghidra_mingw_compat(work_root) if host_os() == "windows" else None
+    environment = r2ghidra_environment(prefix, compat_header=compat_header)
     run(
         [
             "meson",
@@ -190,7 +287,7 @@ def build(target: str, work_root: Path, output: Path, jobs: int) -> None:
     apply_radare2_patch(radare2, patch_file)
     prefix = work_root / "prefix"
     configure_radare2(radare2, prefix)
-    build_radare2(radare2, prefix, jobs)
+    build_radare2(radare2, prefix, jobs, work_root)
     build_r2ghidra(r2ghidra, prefix, work_root, jobs)
     verify_pins(radare2, r2ghidra)
     package_engine(prefix, radare2, r2ghidra, output)
