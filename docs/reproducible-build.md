@@ -48,7 +48,8 @@ patch, configures no-GPL mode, normalizes the plugin list, builds both engines,
 checks source patches, and writes a relocatable runtime bundle. On Linux it
 passes LDFLAGS=-lstdc++ to the r2ghidra Meson build so that GNU ld resolves
 std::string members from libstdc++ before the ghidra-native archives; without
-it, sleighc fails to link with Meson older than 1.4:
+it, sleighc fails to link whenever its C++14 objects are built without
+_GLIBCXX_ASSERTIONS, as Ubuntu 24.04's Meson 1.3.2 does:
 
     python3 scripts/build_engine_bundle.py --target <rust-target> --work-root <work-dir> --output <artifact>/engine --jobs 4
 

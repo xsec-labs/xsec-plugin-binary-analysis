@@ -84,12 +84,23 @@ class R2GhidraLinkOrderBuildTests(unittest.TestCase):
             build = root / "build"
             environment = r2ghidra_environment(root / "prefix", "linux")
 
-            subprocess.run(["meson", "setup", str(build), str(source)], check=True, capture_output=True, env=environment)
-            link_args = next(
-                line
-                for line in (build / "build.ninja").read_text().splitlines()
-                if line.strip().startswith("LINK_ARGS") and "libarchive.a" in line
+            # b_ndebug=true keeps _GLIBCXX_ASSERTIONS off on every Meson
+            # version, so the link fails without the fix as it did with 1.3.2.
+            subprocess.run(
+                ["meson", "setup", "-Db_ndebug=true", str(build), str(source)],
+                check=True,
+                capture_output=True,
+                env=environment,
             )
+            link_args = next(
+                (
+                    line
+                    for line in (build / "build.ninja").read_text().splitlines()
+                    if line.strip().startswith("LINK_ARGS") and "libarchive.a" in line
+                ),
+                None,
+            )
+            self.assertIsNotNone(link_args, "Meson wrote no link line for the archive tool")
             self.assertLess(link_args.index("-lstdc++"), link_args.index("libarchive.a"))
 
             compiled = subprocess.run(["ninja", "-C", str(build)], capture_output=True, text=True, env=environment)

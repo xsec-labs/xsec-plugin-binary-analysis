@@ -105,9 +105,10 @@ def r2ghidra_environment(prefix: Path, os_name: str | None = None) -> dict[str, 
     """Return the r2ghidra build environment for one host.
 
     r2ghidra builds its ghidra-native archives as C++20 but links sleighc as
-    C++14. Meson before 1.4 (Ubuntu 24.04 ships 1.3.2) compiles the C++14
-    objects without _GLIBCXX_ASSERTIONS, so they reference std::string members
-    that libstdc++ exports through extern templates. The C++20 archive members
+    C++14. When the C++14 objects are compiled without _GLIBCXX_ASSERTIONS
+    (Meson before 1.4, such as Ubuntu 24.04's 1.3.2, or any Meson with
+    b_ndebug=true), they reference std::string members that libstdc++ exports
+    through extern templates. The C++20 archive members
     carry weak copies of those members, and GNU ld pulls the first such member
     (sleigh_arch.o, grammar.o) into sleighc before libstdc++ is searched. Those
     members need the decompiler library, which sleighc does not link, and the
