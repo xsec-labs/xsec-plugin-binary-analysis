@@ -30,6 +30,15 @@ jobs:
           set -euo pipefail
           temp_root="$(cygpath -u "$RUNNER_TEMP")"
           python .xsec-binary-analysis-source/scripts/build_engine_bundle.py --target x86_64-pc-windows-msvc --work-root "$temp_root/engine-work" --output "$temp_root/out/binary-engine" --jobs 4
+      - name: List the install prefix
+        if: always()
+        shell: msys2 {0}
+        env:
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: |
+          prefix="$(cygpath -u "$RUNNER_TEMP")/engine-work/prefix"
+          ls -la "$prefix/bin" "$prefix/lib" "$prefix/lib/radare2" "$prefix/lib/radare2/plugins" 2>&1 | head -120 || true
+          objdump -p "$prefix/bin/radare2.exe" 2>/dev/null | grep "DLL Name" || true
       - name: Report the bundle
         if: always()
         shell: pwsh
