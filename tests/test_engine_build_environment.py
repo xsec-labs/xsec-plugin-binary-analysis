@@ -62,9 +62,10 @@ class R2GhidraEnvironmentTests(unittest.TestCase):
     def test_other_hosts_keep_the_engine_environment(self) -> None:
         with tempfile.TemporaryDirectory(prefix="xsec-r2ghidra-env-") as directory:
             prefix = Path(directory)
+            header = write_ghidra_mingw_compat(prefix)
             for os_name in ("darwin", "windows"):
                 with self.subTest(os_name=os_name):
-                    environment = r2ghidra_environment(prefix, os_name)
+                    environment = r2ghidra_environment(prefix, os_name, header)
                     self.assertEqual(environment.get("LDFLAGS"), os.environ.get("LDFLAGS"))
 
     def test_windows_selects_the_ghidra_win32_sources(self) -> None:
