@@ -12,7 +12,7 @@ from unittest import mock
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-from build_engine_bundle import write_ghidra_mingw_compat, r2ghidra_environment, radare2_configure_command, radare2_environment, radare2_make_arguments
+from build_engine_bundle import WINDOWS_STATIC_RUNTIME, write_ghidra_mingw_compat, r2ghidra_environment, radare2_configure_command, radare2_environment, radare2_make_arguments
 
 # A C++20 static archive whose first member also needs a symbol nothing
 # provides, linked into a C++14 executable: the same shape as r2ghidra's
@@ -63,10 +63,20 @@ class R2GhidraEnvironmentTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="xsec-r2ghidra-env-") as directory:
             prefix = Path(directory)
             header = write_ghidra_mingw_compat(prefix)
-            for os_name in ("darwin", "windows"):
-                with self.subTest(os_name=os_name):
-                    environment = r2ghidra_environment(prefix, os_name, header)
-                    self.assertEqual(environment.get("LDFLAGS"), os.environ.get("LDFLAGS"))
+            environment = r2ghidra_environment(prefix, "darwin", header)
+            self.assertEqual(environment.get("LDFLAGS"), os.environ.get("LDFLAGS"))
+
+    def test_windows_links_the_gcc_runtime_statically(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="xsec-r2ghidra-env-") as directory, mock.patch.dict(
+            os.environ, {"LDFLAGS": "-L/ucrt64/lib"}
+        ):
+            prefix = Path(directory)
+            header = write_ghidra_mingw_compat(prefix)
+            ldflags = r2ghidra_environment(prefix, "windows", header)["LDFLAGS"]
+            self.assertEqual(ldflags, f"{WINDOWS_STATIC_RUNTIME} -L/ucrt64/lib")
+            for flag in ("-static-libgcc", "-static-libstdc++", "-lwinpthread"):
+                self.assertIn(flag, ldflags)
+            self.assertNotIn("-lstdc++", ldflags.replace("-static-libstdc++", ""))
 
     def test_windows_selects_the_ghidra_win32_sources(self) -> None:
         with tempfile.TemporaryDirectory(prefix="xsec-r2ghidra-env-") as directory, mock.patch.dict(
@@ -95,14 +105,16 @@ class Radare2ConfigureTests(unittest.TestCase):
         )
 
     def test_windows_keeps_incompatible_pointer_types_a_warning(self) -> None:
-        with mock.patch.dict(os.environ, {"CFLAGS": "-O2"}):
+        with mock.patch.dict(os.environ, {"CFLAGS": "-O2", "LDFLAGS": "-L/ucrt64/lib"}):
             os.environ.pop("MSYS", None)
             windows = radare2_environment("windows")
             self.assertEqual(windows["CFLAGS"], "-O2 -Wno-error=incompatible-pointer-types")
             self.assertEqual(windows["MSYS"], "winsymlinks:nativestrict")
+            self.assertEqual(windows["LDFLAGS"], "-static-libgcc -L/ucrt64/lib")
             for os_name in ("linux", "darwin"):
                 with self.subTest(os_name=os_name):
                     self.assertEqual(radare2_environment(os_name)["CFLAGS"], "-O2")
+                    self.assertEqual(radare2_environment(os_name)["LDFLAGS"], "-L/ucrt64/lib")
                     self.assertNotIn("MSYS", radare2_environment(os_name))
 
     def test_unix_hosts_need_no_extra_make_arguments(self) -> None:

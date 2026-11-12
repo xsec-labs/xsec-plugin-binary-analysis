@@ -89,24 +89,36 @@ def pe_imports(image: Path, objdump: str) -> list[str]:
     return [line.split("DLL Name:", 1)[1].strip() for line in output.splitlines() if "DLL Name:" in line]
 
 
+WINDOWS_SYSTEM_DLLS = frozenset(
+    name.casefold()
+    for name in (
+        "advapi32.dll", "bcrypt.dll", "cfgmgr32.dll", "comctl32.dll", "comdlg32.dll",
+        "crypt32.dll", "dbghelp.dll", "dnsapi.dll", "gdi32.dll", "imagehlp.dll",
+        "iphlpapi.dll", "kernel32.dll", "mswsock.dll", "netapi32.dll", "normaliz.dll",
+        "ntdll.dll", "ole32.dll", "oleaut32.dll", "powrprof.dll", "psapi.dll",
+        "rpcrt4.dll", "secur32.dll", "setupapi.dll", "shell32.dll", "shlwapi.dll",
+        "ucrtbase.dll", "user32.dll", "userenv.dll", "version.dll", "winhttp.dll",
+        "wininet.dll", "winmm.dll", "ws2_32.dll", "wsock32.dll",
+    )
+)
+
+
 def is_windows_system_dll(name: str) -> bool:
     folded = name.casefold()
-    if folded.startswith(("api-ms-win-", "ext-ms-")):
-        return True
-    system_root = os.environ.get("SystemRoot")
-    return bool(system_root) and (Path(system_root) / "System32" / name).is_file()
+    return folded.startswith(("api-ms-win-", "ext-ms-")) or folded in WINDOWS_SYSTEM_DLLS
 
 
 def copy_windows_dlls(
     output_prefix: Path, search_dirs: list[Path], objdump: str | None = None
 ) -> list[str]:
-    """Copy every non-system DLL that r2.exe and the plugins import.
+    """Copy the engine DLLs that r2.exe and the plugins import.
 
     radare2's make install on Windows leaves versioned libr DLLs and symlinks
-    under lib/, and MinGW programs also import zlib1.dll, libstdc++-6.dll,
-    libgcc_s_seh-1.dll and libwinpthread-1.dll from the UCRT64 toolchain. Copy
-    each import by its imported name next to r2.exe, where the Windows loader
-    finds it for the executable and for plugins loaded later.
+    under lib/. Copy each import found in the install prefix by its imported
+    name next to r2.exe, where the Windows loader finds it for the executable
+    and for plugins loaded later. Every other import must be a Windows system
+    DLL from a fixed list: the GCC runtime is linked statically, so a toolchain
+    DLL showing up here is a build regression, not something to ship.
     """
     objdump = objdump or shutil.which("objdump")
     if not objdump:
@@ -135,19 +147,12 @@ def copy_windows_dlls(
             if source is None:
                 if is_windows_system_dll(name):
                     continue
-                raise ValueError(f"Windows engine import is unresolved: {name}")
+                raise ValueError(f"Windows engine image {image.name} imports {name}, which is not an engine or system DLL")
             target = binary_dir / name
             shutil.copy2(source, target)
             copied.append(name)
             pending.append(target)
     return copied
-
-
-def windows_dll_search_dirs(prefix: Path) -> list[Path]:
-    compiler = shutil.which("gcc")
-    if compiler is None:
-        raise ValueError("Windows engine packaging requires the MinGW toolchain on PATH")
-    return [prefix / "lib", prefix / "bin", Path(compiler).resolve().parent]
 
 
 def linux_soname(path: Path) -> str:
@@ -195,7 +200,7 @@ def copy_runtime(
     copy_tree_files(plugin_source, plugin_dir, frozenset({"r2ghidra_sleigh", "libcore_r2ghidra.dll.a"}))
     normalize_engine_plugin_assets(plugin_dir)
     if os.name == "nt":
-        copy_windows_dlls(output_prefix, windows_dll_search_dirs(prefix))
+        copy_windows_dlls(output_prefix, [prefix / "lib", prefix / "bin"])
     strip_debug_symbols(output_root)
     copy_tree_files(prefix / "share" / "radare2", output_prefix / "share" / "radare2")
     copy_tree_files(sleigh_source, output_root / "sleigh")

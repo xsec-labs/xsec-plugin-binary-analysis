@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -32,39 +33,39 @@ class WindowsDllClosureTests(unittest.TestCase):
         (prefix_lib / "core").mkdir(parents=True)
         (prefix_lib / "core" / "libr_core.dll").write_bytes(b"MZ core")
         (prefix_lib / "libr_core.dll").symlink_to("core/libr_core.dll")
-        toolchain = root / "ucrt64" / "bin"
-        toolchain.mkdir(parents=True)
-        (toolchain / "libstdc++-6.dll").write_bytes(b"MZ stdc++")
-        (toolchain / "zlib1.dll").write_bytes(b"MZ zlib")
-        system32 = root / "Windows" / "System32"
-        system32.mkdir(parents=True)
-        (system32 / "KERNEL32.dll").write_bytes(b"MZ kernel")
+        (prefix_lib / "libr_util.dll").write_bytes(b"MZ util")
         table = root / "imports.txt"
         table.write_text("".join(f"{name}:{','.join(dlls)}\n" for name, dlls in imports.items()))
         objdump = root / "objdump"
         objdump.write_text(FAKE_OBJDUMP)
         objdump.chmod(0o755)
-        environment = {"IMPORTS": str(table), "SystemRoot": str(root / "Windows")}
-        return output_prefix, [prefix_lib, root / "prefix" / "bin", toolchain], str(objdump), environment
+        return output_prefix, [prefix_lib, root / "prefix" / "bin"], str(objdump), {"IMPORTS": str(table)}
 
-    def test_copies_the_import_closure_next_to_r2(self) -> None:
+    def test_copies_the_engine_import_closure_next_to_r2(self) -> None:
         imports = {
             "r2.exe": ["libr_core.dll", "KERNEL32.dll", "api-ms-win-crt-runtime-l1-1-0.dll"],
-            "core_ghidra.dll": ["libr_core.dll", "libstdc++-6.dll"],
-            "libr_core.dll": ["zlib1.dll", "KERNEL32.dll"],
-            "libstdc++-6.dll": [],
-            "zlib1.dll": [],
+            "core_ghidra.dll": ["libr_core.dll", "WS2_32.dll"],
+            "libr_core.dll": ["libr_util.dll", "kernel32.dll"],
+            "libr_util.dll": ["ADVAPI32.dll"],
         }
         with tempfile.TemporaryDirectory(prefix="xsec-win-dlls-") as directory:
             output_prefix, search, objdump, environment = self.stage(Path(directory), imports)
             with mock.patch.dict(os.environ, environment):
                 copied = copy_windows_dlls(output_prefix, search, objdump)
-            self.assertEqual(sorted(copied), ["libr_core.dll", "libstdc++-6.dll", "zlib1.dll"])
+            self.assertEqual(sorted(copied), ["libr_core.dll", "libr_util.dll"])
             binary_dir = output_prefix / "bin"
             self.assertEqual((binary_dir / "libr_core.dll").read_bytes(), b"MZ core")
             self.assertFalse((binary_dir / "libr_core.dll").is_symlink())
-            self.assertEqual((binary_dir / "zlib1.dll").read_bytes(), b"MZ zlib")
+            self.assertEqual((binary_dir / "libr_util.dll").read_bytes(), b"MZ util")
             self.assertFalse((binary_dir / "KERNEL32.dll").exists())
+
+    def test_rejects_toolchain_runtime_dlls(self) -> None:
+        for runtime in ("libstdc++-6.dll", "libgcc_s_seh-1.dll", "libwinpthread-1.dll"):
+            with self.subTest(runtime=runtime), tempfile.TemporaryDirectory(prefix="xsec-win-dlls-") as directory:
+                imports = {"r2.exe": ["libr_core.dll"], "core_ghidra.dll": [runtime], "libr_core.dll": []}
+                output_prefix, search, objdump, environment = self.stage(Path(directory), imports)
+                with mock.patch.dict(os.environ, environment), self.assertRaisesRegex(ValueError, re.escape(runtime)):
+                    copy_windows_dlls(output_prefix, search, objdump)
 
     def test_rejects_an_import_it_cannot_find(self) -> None:
         imports = {"r2.exe": ["libmissing.dll"], "core_ghidra.dll": []}
