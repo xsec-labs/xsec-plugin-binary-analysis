@@ -13,7 +13,7 @@ The required directory layout is:
     engine-versions.json
     radare2/bin/r2[.exe]
     radare2/plugins/core_ghidra.(dylib|so|dll)
-    sleigh/<one-or-more-language-specification-files>
+    sleigh/<compiled .sla files with their .ldefs, .pspec and .cspec>
     <required radare2 shared libraries and data files>
 
 engine-versions.json follows docs/engine-versions.schema.json. It pins radare2
@@ -121,7 +121,9 @@ debug build type). The radare2 patch is checked out without line-ending
 conversion so it applies on Windows hosts that set core.autocrlf. At runtime the MCP Sidecar sets
 R2_PREFIX to the artifact-local radare2 directory, R2_LIBR_PLUGINS to the
 verified plugin directory, and SLEIGHHOME to the artifact-local SLEIGH
-directory for each structured engine invocation.
+directory for each structured engine invocation. The bundle carries only the
+compiled SLEIGH runtime files; the .slaspec and .sinc sources are build inputs
+of the .sla files and are left out to keep the Linux package under 100 MiB.
 
 Before publication, the Factory records an SPDX SBOM containing the Rust lock
 file, Recurse source pin, radare2/r2ghidra source commits, applied patches,
