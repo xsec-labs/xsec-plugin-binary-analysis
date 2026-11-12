@@ -12,7 +12,7 @@ from unittest import mock
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-from build_engine_bundle import r2ghidra_environment, radare2_configure_command, radare2_environment
+from build_engine_bundle import r2ghidra_environment, radare2_configure_command, radare2_environment, radare2_make_jobs
 
 # A C++20 static archive whose first member also needs a symbol nothing
 # provides, linked into a C++14 executable: the same shape as r2ghidra's
@@ -82,6 +82,11 @@ class Radare2ConfigureTests(unittest.TestCase):
             for os_name in ("linux", "darwin"):
                 with self.subTest(os_name=os_name):
                     self.assertEqual(radare2_environment(os_name)["CFLAGS"], "-O2")
+
+    def test_windows_builds_radare2_serially(self) -> None:
+        self.assertEqual(radare2_make_jobs(4, "windows"), 1)
+        self.assertEqual(radare2_make_jobs(4, "linux"), 4)
+        self.assertEqual(radare2_make_jobs(4, "darwin"), 4)
 
     def test_unix_hosts_keep_automatic_detection(self) -> None:
         prefix = Path("/tmp/prefix")

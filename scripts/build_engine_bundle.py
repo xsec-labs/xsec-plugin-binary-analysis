@@ -109,12 +109,22 @@ def configure_radare2(source: Path, prefix: Path) -> None:
     run([sys.executable, str(helper), "--source", str(source)], source)
 
 
+def radare2_make_jobs(jobs: int, os_name: str | None = None) -> int:
+    """Return the make parallelism radare2 can use on one host.
+
+    On Windows two make branches both rebuild subprojects/zydis (rm -rf, then
+    mv), and the libr_shlr.lib archive step can run between them and fail on a
+    missing libzydis.a. Build radare2 serially there.
+    """
+    return 1 if (os_name or host_os()) == "windows" else jobs
+
+
 def build_radare2(source: Path, prefix: Path, jobs: int) -> None:
     make = shutil.which("gmake") or shutil.which("make")
     if make is None:
         raise ValueError("radare2 engine build requires GNU make or make")
     environment = radare2_environment()
-    run([make, f"-j{jobs}"], source, environment)
+    run([make, f"-j{radare2_make_jobs(jobs)}"], source, environment)
     run([make, "install"], source, environment)
 
 
