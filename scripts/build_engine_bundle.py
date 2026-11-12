@@ -93,12 +93,16 @@ def radare2_environment(os_name: str | None = None) -> dict[str, str]:
     radare2's make build compiles Windows sources with -DUNICODE, where
     r_sys_whoami passes a char buffer to GetUserName (GetUserNameW). GCC 14
     and later reject that as an incompatible pointer type, so keep it a
-    warning on Windows only.
+    warning on Windows only, and make MSYS create real symlinks.
     """
     environment = os.environ.copy()
     if (os_name or host_os()) == "windows":
         existing = environment.get("CFLAGS", "").strip()
         environment["CFLAGS"] = f"{existing} -Wno-error=incompatible-pointer-types".strip()
+        # `make install` runs `rm -f last && ln -fs 6.2.2 last` twice. MSYS ln
+        # copies directories by default, so the second rm fails on the copy.
+        msys = environment.get("MSYS", "").strip()
+        environment["MSYS"] = f"{msys} winsymlinks:nativestrict".strip()
     return environment
 
 

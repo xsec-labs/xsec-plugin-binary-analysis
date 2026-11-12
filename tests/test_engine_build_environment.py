@@ -78,10 +78,14 @@ class Radare2ConfigureTests(unittest.TestCase):
 
     def test_windows_keeps_incompatible_pointer_types_a_warning(self) -> None:
         with mock.patch.dict(os.environ, {"CFLAGS": "-O2"}):
-            self.assertEqual(radare2_environment("windows")["CFLAGS"], "-O2 -Wno-error=incompatible-pointer-types")
+            os.environ.pop("MSYS", None)
+            windows = radare2_environment("windows")
+            self.assertEqual(windows["CFLAGS"], "-O2 -Wno-error=incompatible-pointer-types")
+            self.assertEqual(windows["MSYS"], "winsymlinks:nativestrict")
             for os_name in ("linux", "darwin"):
                 with self.subTest(os_name=os_name):
                     self.assertEqual(radare2_environment(os_name)["CFLAGS"], "-O2")
+                    self.assertNotIn("MSYS", radare2_environment(os_name))
 
     def test_unix_hosts_need_no_extra_make_arguments(self) -> None:
         with tempfile.TemporaryDirectory(prefix="xsec-r2-make-") as directory:
