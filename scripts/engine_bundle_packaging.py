@@ -12,7 +12,7 @@ import subprocess
 import sys
 import tempfile
 
-from engine_portability import BuildPathMap, normalize_build_paths, normalize_engine_plugin_assets, strip_macos_debug_symbols
+from engine_portability import BuildPathMap, normalize_build_paths, normalize_engine_plugin_assets, strip_debug_symbols
 
 ENGINE_VERSION = "6.2.2"
 MAX_BUNDLE_BYTES = 100 * 1024 * 1024
@@ -129,7 +129,7 @@ def copy_runtime(
     plugin_dir = output_prefix / "plugins"
     copy_tree_files(plugin_source, plugin_dir, frozenset({"r2ghidra_sleigh"}))
     normalize_engine_plugin_assets(plugin_dir)
-    strip_macos_debug_symbols(output_root)
+    strip_debug_symbols(output_root)
     copy_tree_files(prefix / "share" / "radare2", output_prefix / "share" / "radare2")
     copy_tree_files(sleigh_source, output_root / "sleigh")
     return binary_target
