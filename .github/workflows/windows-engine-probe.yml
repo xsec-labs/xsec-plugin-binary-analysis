@@ -1,0 +1,52 @@
+# Temporary probe for the Windows engine build. Never merged.
+name: windows-engine-probe
+on:
+  push:
+    branches: [claude/project-thread-ejf7gk-winprobe]
+permissions:
+  contents: read
+jobs:
+  engine:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: .xsec-binary-analysis-source
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: false
+          install: base-devel git make mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-meson mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-python
+      - name: Build the Windows engine bundle
+        shell: msys2 {0}
+        env:
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          temp_root="$(cygpath -u "$RUNNER_TEMP")"
+          python .xsec-binary-analysis-source/scripts/build_engine_bundle.py --target x86_64-pc-windows-msvc --work-root "$temp_root/engine-work" --output "$temp_root/out/binary-engine" --jobs 4
+      - name: Report the bundle
+        if: always()
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'out\binary-engine'
+          if (Test-Path $root) {
+            Get-ChildItem -Recurse -File $root | Measure-Object -Sum Length | Format-List Count,Sum
+            Get-ChildItem -File (Join-Path $root 'radare2\bin') | Format-Table Name,Length
+          }
+      - name: Run r2.exe without MSYS2 on PATH
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'out\binary-engine'
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+          $env:R2_PREFIX = Join-Path $root 'radare2'
+          $env:R2_LIBR_PLUGINS = Join-Path $root 'radare2\plugins'
+          & (Join-Path $root 'radare2\bin\r2.exe') -v
+          if ($LASTEXITCODE -ne 0) { throw "r2.exe exited $LASTEXITCODE (0xC0000135 means a missing DLL)" }
+          & (Join-Path $root 'radare2\bin\r2.exe') -qc 'Lc' -
+          & (Join-Path $root 'radare2\bin\r2.exe') -qc 'pdg @ entry0' 'C:\Windows\System32\cmd.exe'
