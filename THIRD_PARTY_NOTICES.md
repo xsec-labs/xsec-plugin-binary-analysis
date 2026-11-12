@@ -34,6 +34,15 @@ subprojects are ghidra-native at commit
 `licenses/GPL-3.0.txt` because LGPLv3 incorporates GPLv3 terms, as well as the
 Apache-2.0 and zlib license texts.
 
+## Windows GCC runtime
+
+The Windows engine is built with MSYS2 MinGW GCC and links the GCC runtime
+statically. libgcc and libstdc++ are covered by the GCC Runtime Library
+Exception. mingw-w64 winpthreads is compiled into the r2ghidra plugin
+(`libcore_r2ghidra.dll`); it is licensed under the MIT license (Copyright (c)
+2011 mingw-w64 project) with parts under the BSD-3-Clause license ((C) 2010
+Lockless Inc.). Its full notice is included in `licenses/winpthreads.txt`.
+
 Each platform release carries its exact source pins, source archives, local
 patches, generated license inventory, SPDX release SBOM, and reproducible build
 record alongside the engine bundle.

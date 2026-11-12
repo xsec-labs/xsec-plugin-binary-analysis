@@ -188,8 +188,10 @@ GHIDRA_MINGW_COMPAT = """/* Forced include for r2ghidra C++ sources under MinGW 
 """
 
 
-# Meson places LDFLAGS before the objects, so winpthread is pulled in whole
-# rather than by reference; the import library is then never needed.
+# Meson places LDFLAGS ahead of the linked archives and the driver's runtime
+# libraries, so winpthread is pulled in whole there and the driver's later
+# -lpthread never reaches the import library. Its notice is in
+# licenses/winpthreads.txt.
 WINDOWS_STATIC_RUNTIME = (
     "-static-libgcc -static-libstdc++ "
     "-Wl,-Bstatic,--whole-archive,-lwinpthread,--no-whole-archive,-Bdynamic"

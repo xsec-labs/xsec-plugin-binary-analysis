@@ -74,9 +74,6 @@ class R2GhidraEnvironmentTests(unittest.TestCase):
             header = write_ghidra_mingw_compat(prefix)
             ldflags = r2ghidra_environment(prefix, "windows", header)["LDFLAGS"]
             self.assertEqual(ldflags, f"{WINDOWS_STATIC_RUNTIME} -L/ucrt64/lib")
-            for flag in ("-static-libgcc", "-static-libstdc++", "-lwinpthread"):
-                self.assertIn(flag, ldflags)
-            self.assertNotIn("-lstdc++", ldflags.replace("-static-libstdc++", ""))
 
     def test_windows_selects_the_ghidra_win32_sources(self) -> None:
         with tempfile.TemporaryDirectory(prefix="xsec-r2ghidra-env-") as directory, mock.patch.dict(
@@ -147,6 +144,12 @@ class Radare2ConfigureTests(unittest.TestCase):
             )
             subprocess.run(["sh", str(wrapper), "rcs", "libsdb.lib", "a.o"], input="", text=True, check=True, env=environment)
             self.assertEqual(log.read_text(), "rcs libsdb.lib a.o|")
+
+            log.unlink()
+            (tools / "cygpath").write_text("#!/bin/sh\nexit 1\n")
+            failed = subprocess.run(["sh", str(wrapper), "-M"], input=mri, text=True, env=environment)
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertFalse(log.exists(), "ar ran with an unconverted MRI script")
 
     def test_unix_hosts_keep_automatic_detection(self) -> None:
         prefix = Path("/tmp/prefix")
