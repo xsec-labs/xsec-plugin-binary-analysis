@@ -23,3 +23,8 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "proce
 url = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 object = { version = "0.37.3", default-features = false, features = ["read", "std"] }
+
+[profile.release]
+# Symbols alone add ~4 MiB to the MCP executable, which counts toward the
+# 100 MiB plugin package limit together with the engine bundle.
+strip = "symbols"
