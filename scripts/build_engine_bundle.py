@@ -103,6 +103,8 @@ def radare2_environment(os_name: str | None = None) -> dict[str, str]:
         # copies directories by default, so the second rm fails on the copy.
         msys = environment.get("MSYS", "").strip()
         environment["MSYS"] = f"{msys} winsymlinks:nativestrict".strip()
+        ldflags = environment.get("LDFLAGS", "").strip()
+        environment["LDFLAGS"] = f"-static-libgcc {ldflags}".strip()
     return environment
 
 

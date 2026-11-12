@@ -147,7 +147,7 @@ def copy_windows_dlls(
             if source is None:
                 if is_windows_system_dll(name):
                     continue
-                raise ValueError(f"Windows engine import is not an engine or system DLL: {name}")
+                raise ValueError(f"Windows engine image {image.name} imports {name}, which is not an engine or system DLL")
             target = binary_dir / name
             shutil.copy2(source, target)
             copied.append(name)

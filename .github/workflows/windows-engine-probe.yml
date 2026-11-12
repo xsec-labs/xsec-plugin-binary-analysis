@@ -38,7 +38,12 @@ jobs:
         run: |
           prefix="$(cygpath -u "$RUNNER_TEMP")/engine-work/prefix"
           ls -la "$prefix/bin" "$prefix/lib" "$prefix/lib/radare2" "$prefix/lib/radare2/plugins" 2>&1 | head -120 || true
-          objdump -p "$prefix/bin/radare2.exe" 2>/dev/null | grep "DLL Name" || true
+          for image in "$prefix"/bin/*.exe "$prefix"/bin/*.dll "$prefix"/lib/*.dll "$prefix"/lib/radare2/plugins/*.dll; do
+            [ -e "$image" ] || continue
+            extra=$(objdump -p "$image" 2>/dev/null | sed -n 's/.*DLL Name: //p' | grep -viE '^(api-ms-win-|kernel32|advapi32|ws2_32|user32|shell32|ole32|oleaut32|bcrypt|crypt32|psapi|dbghelp|ntdll|libr_)' | tr '\n' ' ')
+            [ -n "$extra" ] && echo "$(basename "$image"): $extra"
+          done
+          grep -n "LDFLAGS" /d/a/_temp/engine-work/sources/radare2/config-user.mk 2>/dev/null || true
       - name: Report the bundle
         if: always()
         shell: pwsh
