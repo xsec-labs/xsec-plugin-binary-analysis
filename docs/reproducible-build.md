@@ -90,8 +90,11 @@ including its MCP executable and metadata, must stay within 100 MiB and 4,096
 archive entries.
 
 The packager rewrites compiled SLEIGH and source paths to stable locations,
-removes absolute Mach-O runtime search paths, and strips debug paths before
-signing. At runtime the MCP Sidecar sets
+removes absolute Mach-O runtime search paths, and strips debug information
+from the r2 executable and every engine library on all three platforms before
+signing (radare2 always compiles with -g and r2ghidra uses Meson's default
+debug build type). The radare2 patch is checked out without line-ending
+conversion so it applies on Windows hosts that set core.autocrlf. At runtime the MCP Sidecar sets
 R2_PREFIX to the artifact-local radare2 directory, R2_LIBR_PLUGINS to the
 verified plugin directory, and SLEIGHHOME to the artifact-local SLEIGH
 directory for each structured engine invocation.
