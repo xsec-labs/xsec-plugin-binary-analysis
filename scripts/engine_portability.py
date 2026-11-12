@@ -71,18 +71,25 @@ def current_platform_key() -> str:
     raise ValueError("binary engine packaging does not support this host OS")
 
 
-def strip_macos_debug_symbols(engine_root: Path) -> int:
-    if sys.platform != "darwin":
-        return 0
+def strip_debug_symbols(engine_root: Path, platform_key: str | None = None) -> int:
+    """Remove debug information from the engine executable and every library.
+
+    radare2's make build always passes -g and r2ghidra's Meson project keeps
+    Meson's default debug build type, so unstripped Linux and Windows images
+    carry enough DWARF to push the bundle past its 100 MiB budget.
+    """
+    key = platform_key or current_platform_key()
     strip = shutil.which("strip")
     if strip is None:
-        raise ValueError("macOS engine packaging requires strip")
-    images = [engine_root / "radare2" / "bin" / "r2"]
+        raise ValueError("engine packaging requires strip")
+    flag = "-S" if key == "darwin" else "--strip-debug"
+    binary = "r2.exe" if key == "windows" else "r2"
+    images = [engine_root / "radare2" / "bin" / binary]
     images.extend(
         path for path in engine_root.rglob("*") if path.is_file() and is_dynamic_image(path)
     )
     for image in images:
-        subprocess.run([strip, "-S", str(image)], check=True, capture_output=True)
+        subprocess.run([strip, flag, str(image)], check=True, capture_output=True)
     return len(images)
 
 

@@ -54,6 +54,8 @@ def checkout_source(name: str, source_root: Path) -> Path:
     destination = source_root / name
     destination.mkdir()
     run(["git", "init", "--quiet"], destination)
+    # Pinned digests and the radare2 patch expect the upstream LF bytes.
+    run(["git", "config", "core.autocrlf", "false"], destination)
     run(["git", "remote", "add", "origin", url], destination)
     run(["git", "fetch", "--depth=1", "--no-tags", "origin", commit], destination)
     run(["git", "checkout", "--detach", "FETCH_HEAD"], destination)
