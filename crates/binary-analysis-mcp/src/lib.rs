@@ -2,6 +2,7 @@ mod host;
 mod jobs;
 mod model;
 mod server;
+mod stdio_guard;
 mod store;
 mod tool_schema;
 
@@ -20,8 +21,9 @@ use crate::store::Store;
 const PLUGIN_DATA_ENV: &str = "PLUGIN_DATA";
 const PLUGIN_ROOT_ENV: &str = "PLUGIN_ROOT";
 
-/// Start the structured stdio MCP service. stdout stays owned by rmcp; all
-/// diagnostics go to stderr so a malformed log entry cannot corrupt JSON-RPC.
+/// Start the structured stdio MCP service. Everything written to stdout goes
+/// through `stdio_guard`, which keeps JSON-RPC lines whole; diagnostics go to
+/// stderr so a malformed log entry cannot corrupt JSON-RPC.
 pub async fn run_stdio() -> Result<()> {
     let data_dir = required_path(PLUGIN_DATA_ENV)?;
     let store = Arc::new(Store::open(&data_dir)?);
@@ -30,8 +32,11 @@ pub async fn run_stdio() -> Result<()> {
     let jobs = JobCoordinator::new(store.clone(), bundle);
     let server = BinaryAnalysisServer::new(store, host, jobs);
     eprintln!("binary_analysis_mcp.started mode=embedded-required");
-    let running = server.serve(rmcp::transport::stdio()).await?;
-    running.waiting().await?;
+    let (reader, writer, session) = stdio_guard::start();
+    let running = server.serve((reader, writer)).await?;
+    let finished = running.waiting().await;
+    session.finish().await;
+    finished?;
     Ok(())
 }
 
