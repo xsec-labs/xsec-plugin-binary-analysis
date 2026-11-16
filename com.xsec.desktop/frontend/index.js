@@ -220,7 +220,11 @@ class BinaryAnalysisView {
   }
   renderSamples(samples, append = false) {
     this.sampleMoreButton?.remove(); this.sampleMoreButton = null;
-    if (!append) this.list.replaceChildren();
+    if (!append) {
+      this.list.replaceChildren();
+      if (this.backButton) this.backButton.hidden = true;
+      if (this.sampleMeta) this.sampleMeta.textContent = "Host 受管样本";
+    }
     if (!samples.length && !append) this.list.append(el("p", "尚未导入经授权的样本。", "ba-empty"));
     for (const sample of samples) this.list.append(this.sampleCard(sample));
     if (this.sampleCursor) {
@@ -463,7 +467,6 @@ class BinaryAnalysisView {
     this.sampleMeta = el("span", "Host 受管样本", "ba-meta");
     heading.append(el("span", "二进制分析", "ba-title"), this.sampleMeta);
     this.backButton = this.actionButton("样本列表", async () => {
-      this.backButton.hidden = true; this.sampleMeta.textContent = "Host 受管样本";
       await this.refreshSamples();
     }, "ghost", "list");
     this.backButton.hidden = true;
