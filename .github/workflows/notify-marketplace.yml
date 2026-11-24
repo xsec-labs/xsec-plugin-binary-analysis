@@ -1,0 +1,35 @@
+name: Notify marketplace factory
+
+# Every plugin releases from main. When main moves, ask xsec-plugins to look at
+# the registered plugins: it publishes the ones whose version is not published yet.
+# The token can only run workflows in xsec-labs/xsec-plugins; xsec-plugins
+# re-reads this repository's main head itself, so it cannot be used to publish
+# anything that is not on main.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: notify-marketplace-factory
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run the release workflow in xsec-plugins
+        env:
+          GH_TOKEN: ${{ secrets.XSEC_PLUGINS_DISPATCH_TOKEN }}
+          SOURCE_REPOSITORY: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [ -n "$GH_TOKEN" ] || {
+            echo "::error::XSEC_PLUGINS_DISPATCH_TOKEN is not configured for this repository."
+            exit 1
+          }
+          gh workflow run release-plugins.yml --repo xsec-labs/xsec-plugins --ref main \
+            -f source_repository="$SOURCE_REPOSITORY" -f source_sha="$SOURCE_SHA"
